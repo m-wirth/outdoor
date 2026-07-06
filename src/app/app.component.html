@@ -1,0 +1,53 @@
+@if (!unlocked()) {
+  <main class="splash">
+    <div class="contours" aria-hidden="true"></div>
+    <section class="login-card">
+      <div class="brand"><span class="brand-mark">▲</span><span>{{ settings.appName }}</span></div>
+      <div class="login-copy">
+        <p class="eyebrow">Werkzeuge für unterwegs</p>
+        <h1>Mehr Zeit draussen.<br><em>Weniger Umwege.</em></h1>
+        <p>Eine kleine Sammlung praktischer Online-Tools für Menschen, die lieber Wege als Formulare erkunden.</p>
+      </div>
+      <form (ngSubmit)="login()" class="login-form">
+        <label for="password">Zugangspasswort</label>
+        <div class="password-row">
+          <input id="password" name="password" type="password" autocomplete="current-password"
+            [(ngModel)]="password" [attr.aria-invalid]="!!loginError()" placeholder="Passwort eingeben" autofocus>
+          <button type="submit" [disabled]="!password || loggingIn()" aria-label="Anmelden">→</button>
+        </div>
+        @if (loginError()) { <p class="form-error" role="alert">{{ loginError() }}</p> }
+      </form>
+      <p class="privacy">Geschützt · Daten bleiben auf deinem Gerät</p>
+    </section>
+    <aside class="splash-note"><span>46° 48′ N</span><span>Frische Luft inklusive</span></aside>
+  </main>
+} @else {
+  <header class="app-header">
+    <button class="brand-button" type="button" (click)="open('dashboard')"><span class="brand-mark">▲</span>{{ settings.appName }}</button>
+    <nav aria-label="Hauptnavigation">
+      @if (view() !== 'dashboard') { <button type="button" class="back" (click)="open('dashboard')">← Übersicht</button> }
+      <button type="button" class="logout" (click)="logout()">Sperren <span>↗</span></button>
+    </nav>
+  </header>
+
+  <main class="app-main">
+    @if (view() === 'dashboard') {
+      <section class="dashboard-intro">
+        <div><p class="eyebrow">Deine Trailbox</p><h1>Was steht heute an?</h1></div>
+        <p>Praktische Helfer für Planung, Administration und alles dazwischen.</p>
+      </section>
+      <section class="tile-grid" aria-label="Verfügbare Werkzeuge">
+        <button class="feature-tile active" type="button" (click)="open('checker')">
+          <span class="tile-number">01</span><span class="tile-art" aria-hidden="true"><i></i><b>✓</b></span>
+          <span class="tile-copy"><small>Administration</small><strong>Import-Checker</strong><span>Personen-CSV vor dem Import prüfen</span></span>
+          <span class="tile-arrow">↗</span>
+        </button>
+        <article class="feature-tile upcoming"><span class="tile-number">02</span><span class="ghost-lines"></span><span class="tile-copy"><small>Demnächst</small><strong>Touren-Wetter</strong><span>Wetterfenster auf einen Blick</span></span></article>
+        <article class="feature-tile upcoming"><span class="tile-number">03</span><span class="ghost-lines"></span><span class="tile-copy"><small>Demnächst</small><strong>Packlisten</strong><span>Nichts Wichtiges vergessen</span></span></article>
+      </section>
+      <footer class="dashboard-footer"><span>Schweizer Berge, digital unterstützt.</span><span>Version 1.0</span></footer>
+    } @else {
+      <app-csv-checker />
+    }
+  </main>
+}
