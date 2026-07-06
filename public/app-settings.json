@@ -1,0 +1,10 @@
+{
+  "appName": "Trailbox",
+  "passwordSalt": "0c17aeb7e718d2b252ac28ebf6bf924b",
+  "passwordHash": "4ad29fd23d76022401e3a87f6e47087419c0339f0168f116a5dcbc09bbe07d02",
+  "sessionHours": 8,
+  "importChecker": {
+    "maxRows": 200,
+    "requireIdentifier": true
+  }
+}
