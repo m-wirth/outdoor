@@ -1,0 +1,32 @@
+{
+  "name": "outdoor",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build --base-href /outdoor/",
+    "test": "ng test --watch=false",
+    "password": "node scripts/set-password.mjs",
+    "deploy": "pnpm build"
+  },
+  "dependencies": {
+    "@angular/common": "21.2.17",
+    "@angular/compiler": "21.2.17",
+    "@angular/core": "21.2.17",
+    "@angular/forms": "21.2.17",
+    "@angular/platform-browser": "21.2.17",
+    "rxjs": "7.8.2",
+    "tslib": "2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "21.2.18",
+    "@angular/cli": "21.2.18",
+    "@angular/compiler-cli": "21.2.17",
+    "@types/node": "24.13.2",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  },
+  "packageManager": "pnpm@11.7.0"
+}
