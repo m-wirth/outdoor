@@ -1,0 +1,64 @@
+<section class="feature-head">
+  <div class="feature-icon" aria-hidden="true">✓</div>
+  <div>
+    <p class="eyebrow">Import-Checker</p>
+    <h2>Ist deine Personendatei bereit?</h2>
+    <p>Wir prüfen Aufbau, Pflichtfelder und Formate direkt in deinem Browser. Die Datei wird nicht hochgeladen.</p>
+  </div>
+</section>
+
+@if (!result() && !fileError()) {
+  <label class="drop-zone" [class.dragging]="dragging()" (dragover)="onDrag($event, true)"
+    (dragleave)="onDrag($event, false)" (drop)="onDrop($event)">
+    <input type="file" accept=".csv,text/csv" (change)="onFile($event)">
+    <span class="upload-mark" aria-hidden="true">↑</span>
+    <strong>{{ reading() ? 'Datei wird geprüft …' : 'CSV hierher ziehen' }}</strong>
+    <span>oder vom Gerät auswählen</span>
+    <span class="select-button">CSV auswählen</span>
+  </label>
+}
+
+@if (fileError()) {
+  <section class="result-panel invalid" aria-live="polite">
+    <div class="result-symbol">!</div>
+    <div><p class="eyebrow">Datei nicht lesbar</p><h3>{{ fileError() }}</h3><p>{{ fileName() }}</p></div>
+    <button type="button" class="secondary" (click)="reset()">Andere Datei</button>
+  </section>
+}
+
+@if (result(); as check) {
+  <section class="result-panel" [class.valid]="check.valid" [class.invalid]="!check.valid" aria-live="polite">
+    <div class="result-symbol">{{ check.valid ? '✓' : '!' }}</div>
+    <div class="result-copy">
+      <p class="eyebrow">{{ check.valid ? 'Prüfung bestanden' : 'Korrektur nötig' }}</p>
+      <h3>{{ check.valid ? 'Die CSV-Datei ist gültig.' : check.errors.length + (check.errors.length === 1 ? ' Fehler gefunden' : ' Fehler gefunden') }}</h3>
+      <p>{{ fileName() }} · {{ check.rowCount }} {{ check.rowCount === 1 ? 'Person' : 'Personen' }}</p>
+    </div>
+    <button type="button" class="secondary" (click)="reset()">Andere Datei</button>
+  </section>
+
+  @if (check.errors.length) {
+    <div class="report-head"><div><p class="eyebrow">Fehler-Report</p><h3>Das musst du korrigieren</h3></div><span>{{ check.errors.length }} total</span></div>
+    <div class="issues">
+      @for (error of check.errors; track $index) {
+        <article class="issue">
+          <span class="line">Zeile {{ error.line }}</span>
+          <div><strong>{{ error.column || 'Dateiaufbau' }}</strong><p>{{ error.message }}</p></div>
+        </article>
+      }
+    </div>
+  }
+  @if (check.warnings.length) {
+    <div class="warning">{{ check.warnings[0].message }}</div>
+  }
+}
+
+<aside class="rules">
+  <h3>Was wird geprüft?</h3>
+  <div class="rule-grid">
+    <div><b>21</b><span>Spalten in fester Reihenfolge</span></div>
+    <div><b>{{ settings.importChecker.maxRows }}</b><span>Personen maximal</span></div>
+    <div><b>UTF-8</b><span>Semikolon-getrennt</span></div>
+    <div><b>lokal</b><span>Keine Datenübertragung</span></div>
+  </div>
+</aside>
