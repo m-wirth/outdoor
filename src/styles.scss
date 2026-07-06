@@ -1,0 +1,7 @@
+:root { --forest: #173d2b; --moss: #47745a; --sun: #f1cb69; --pale: #dfeadf; --paper: #f7f6ef; --ink: #173029; --muted: #68766e; --sans: ui-rounded, 'Avenir Next', 'Segoe UI', system-ui, sans-serif; --serif: Georgia, 'Times New Roman', serif; --shadow: 0 24px 60px #173d2b1f; color-scheme: light; }
+* { box-sizing: border-box; }
+html { background: var(--paper); scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; color: var(--ink); background: var(--paper); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; }
+button:focus-visible, input:focus-visible, label:has(input:focus-visible) { outline: 3px solid #4f91ff; outline-offset: 3px; }
+::selection { background: var(--sun); color: var(--forest); }
