@@ -30,6 +30,14 @@ import {
 } from './planner-utils';
 
 type PlannerTab = 'dashboard' | 'matrix' | 'people' | 'settings' | 'report';
+type SortDirection = 'asc' | 'desc';
+type MatrixSortKey = 'firstName' | 'lastName' | 'role' | 'subTraining';
+type PeopleSortKey = MatrixSortKey | 'gender' | 'origin';
+
+interface SortState<T extends string> {
+  key: T;
+  direction: SortDirection;
+}
 
 interface TrainingDraft {
   name: string;
@@ -85,12 +93,24 @@ export class PlannerComponent {
       return (!query || name.includes(query)) && (!role || person.role === role) && (!course || person.subTrainingId === course);
     });
   });
+  readonly visiblePeriods = computed(() => this.periods.filter((period) => {
+    if ((period === 'morning' || period === 'afternoon') && !this.showDaytimes()) return false;
+    if ((period === 'lunch' || period === 'dinner') && !this.showMeals()) return false;
+    return period !== 'overnight' || this.showOvernight();
+  }));
+  readonly sortedFilteredPeople = computed(() => this.sortPeople(this.filteredPeople(), this.matrixSort()));
+  readonly sortedPeople = computed(() => this.sortPeople(this.activePeople(), this.peopleSort()));
   readonly participants = computed(() => this.activePeople().filter((person) => person.role === 'Teilnehmer'));
   readonly totalNights = computed(() => this.dates().reduce((total, date) => total + this.count(date, 'overnight'), 0));
 
   readonly search = signal('');
   readonly roleFilter = signal<PlannerRole | ''>('');
   readonly courseFilter = signal('');
+  readonly showMeals = signal(true);
+  readonly showDaytimes = signal(true);
+  readonly showOvernight = signal(true);
+  readonly matrixSort = signal<SortState<MatrixSortKey>>({ key: 'lastName', direction: 'asc' });
+  readonly peopleSort = signal<SortState<PeopleSortKey>>({ key: 'lastName', direction: 'asc' });
   readonly personEditorOpen = signal(false);
   readonly editingPersonId = signal('');
   readonly absenceEditorOpen = signal(false);
@@ -305,6 +325,19 @@ export class PlannerComponent {
     return this.activeTraining()?.subTrainings.find((item) => item.id === person.subTrainingId)?.name ?? '–';
   }
 
+  setMatrixSort(key: MatrixSortKey): void {
+    this.matrixSort.update((current) => nextSort(current, key));
+  }
+
+  setPeopleSort(key: PeopleSortKey): void {
+    this.peopleSort.update((current) => nextSort(current, key));
+  }
+
+  sortLabel<T extends string>(state: SortState<T>, key: T): string {
+    if (state.key !== key) return '↕';
+    return state.direction === 'asc' ? '↑' : '↓';
+  }
+
   dateLabel(value: string): string {
     return localDateLabel(value);
   }
@@ -431,6 +464,22 @@ export class PlannerComponent {
     this.error.set('');
     this.notice.set('');
   }
+
+  private sortPeople<T extends MatrixSortKey | PeopleSortKey>(people: PlannerPerson[], sort: SortState<T>): PlannerPerson[] {
+    return [...people].sort((left, right) => {
+      const primary = compareText(this.sortValue(left, sort.key), this.sortValue(right, sort.key), sort.direction);
+      if (primary) return primary;
+      const byLastName = compareText(left.lastName, right.lastName, 'asc');
+      if (byLastName) return byLastName;
+      return compareText(left.firstName, right.firstName, 'asc');
+    });
+  }
+
+  private sortValue(person: PlannerPerson, key: MatrixSortKey | PeopleSortKey): string {
+    if (key === 'subTraining') return this.subTrainingNameFor(person);
+    if (key === 'origin') return person.external ? 'Extern' : 'Intern';
+    return person[key];
+  }
 }
 
 function safeFilename(value: string): string {
@@ -439,4 +488,13 @@ function safeFilename(value: string): string {
 
 function genderShort(gender: Gender): string {
   return ({ Weiblich: 'W', Männlich: 'M', Divers: 'D', 'Keine Angabe': '–' } as const)[gender];
+}
+
+function nextSort<T extends string>(current: SortState<T>, key: T): SortState<T> {
+  return { key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' };
+}
+
+function compareText(left: string, right: string, direction: SortDirection): number {
+  const result = left.localeCompare(right, 'de-CH', { sensitivity: 'base', numeric: true });
+  return direction === 'asc' ? result : -result;
 }

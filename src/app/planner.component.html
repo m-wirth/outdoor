@@ -129,34 +129,41 @@
           <input [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Person suchen …" aria-label="Person suchen">
           <select [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)"><option value="">Alle Rollen</option>@for (role of roles; track role) { <option [value]="role">{{ role }}</option> }</select>
           <select [ngModel]="courseFilter()" (ngModelChange)="courseFilter.set($event)"><option value="">Alle Unterkurse</option>@for (course of training.subTrainings; track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select>
-          <span>{{ filteredPeople().length }} angezeigt</span>
+          <span>{{ sortedFilteredPeople().length }} angezeigt</span>
+        </div>
+        <div class="matrix-options" aria-label="Matrixspalten anzeigen">
+          <label><input type="checkbox" [ngModel]="showDaytimes()" (ngModelChange)="showDaytimes.set($event)"> Tageszeiten</label>
+          <label><input type="checkbox" [ngModel]="showMeals()" (ngModelChange)="showMeals.set($event)"> Mahlzeiten</label>
+          <label><input type="checkbox" [ngModel]="showOvernight()" (ngModelChange)="showOvernight.set($event)"> Übernachtung</label>
         </div>
         <div class="matrix-scroll">
           <table class="planner-matrix">
             <thead>
-              <tr><th class="sticky person-col" rowspan="2">Person</th><th class="sticky role-col" rowspan="2">Rolle</th><th class="sticky course-col" rowspan="2">UK</th>
-                @for (date of dates(); track date) { <th class="date-head" colspan="5">{{ dateLabel(date) }}</th> }
+              <tr><th class="sticky person-col" rowspan="2"><span class="person-sort-group"><button class="sort-head" type="button" (click)="setMatrixSort('firstName')">Vorname <span>{{ sortLabel(matrixSort(), 'firstName') }}</span></button><button class="sort-head" type="button" (click)="setMatrixSort('lastName')">Name <span>{{ sortLabel(matrixSort(), 'lastName') }}</span></button></span></th><th class="sticky role-col" rowspan="2"><button class="sort-head" type="button" (click)="setMatrixSort('role')">Rolle <span>{{ sortLabel(matrixSort(), 'role') }}</span></button></th><th class="sticky course-col" rowspan="2"><button class="sort-head" type="button" (click)="setMatrixSort('subTraining')">UK <span>{{ sortLabel(matrixSort(), 'subTraining') }}</span></button></th>
+                @if (visiblePeriods().length) { @for (date of dates(); track date) { <th class="date-head" [attr.colspan]="visiblePeriods().length">{{ dateLabel(date) }}</th> } }
               </tr>
-              <tr>@for (date of dates(); track date) { @for (period of periods; track period) { <th [title]="periodLabels[period].long">{{ periodLabels[period].short }}</th> } }</tr>
+              <tr>@for (date of dates(); track date) { @for (period of visiblePeriods(); track period) { <th [title]="periodLabels[period].long">{{ periodLabels[period].short }}</th> } }</tr>
             </thead>
             <tbody>
-              @for (person of filteredPeople(); track person.id) {
+              @for (person of sortedFilteredPeople(); track person.id) {
                 <tr>
                   <th class="sticky person-col"><button class="person-link" type="button" (click)="openPerson(person)"><span>{{ person.firstName }} {{ person.lastName }}</span>@if (person.external) { <small>extern</small> }</button></th>
                   <td class="sticky role-col">{{ person.role }}</td><td class="sticky course-col">{{ subTrainingNameFor(person) }}</td>
-                  @for (date of dates(); track date) {
-                    @for (period of periods; track period) {
-                      <td class="state-cell" [class.day-end]="period === 'overnight'" [class.overridden]="isMealOverride(person, date, period)" [class.absence]="hasApprovedAbsence(person, date, period)">
-                        <button type="button" [class.yes]="presence(person, date, period)" [attr.aria-pressed]="presence(person, date, period)" [disabled]="hasApprovedAbsence(person, date, period)" (click)="toggle(person, date, period)" [title]="periodLabels[period].long + ': ' + (presence(person, date, period) ? 'Ja' : 'Nein')">{{ presence(person, date, period) ? '✓' : '–' }}</button>
-                      </td>
+                  @if (visiblePeriods().length) {
+                    @for (date of dates(); track date) {
+                      @for (period of visiblePeriods(); track period) {
+                        <td class="state-cell" [class.day-end]="period === 'overnight'" [class.overridden]="isMealOverride(person, date, period)" [class.absence]="hasApprovedAbsence(person, date, period)">
+                          <button type="button" [class.yes]="presence(person, date, period)" [attr.aria-pressed]="presence(person, date, period)" [disabled]="hasApprovedAbsence(person, date, period)" (click)="toggle(person, date, period)" [title]="periodLabels[period].long + ': ' + (presence(person, date, period) ? 'Ja' : 'Nein')">{{ presence(person, date, period) ? '✓' : '–' }}</button>
+                        </td>
+                      }
                     }
                   }
                 </tr>
-              } @empty { <tr><td class="no-results" [attr.colspan]="3 + dates().length * 5">Keine Personen für diesen Filter.</td></tr> }
+              } @empty { <tr><td class="no-results" [attr.colspan]="3 + dates().length * visiblePeriods().length">Keine Personen für diesen Filter.</td></tr> }
             </tbody>
             <tfoot>
               <tr><th class="sticky person-col">Total</th><td class="sticky role-col"></td><td class="sticky course-col"></td>
-                @for (date of dates(); track date) { @for (period of periods; track period) { <td [class.day-end]="period === 'overnight'">{{ count(date, period, filteredPeople()) }}</td> } }
+                @if (visiblePeriods().length) { @for (date of dates(); track date) { @for (period of visiblePeriods(); track period) { <td [class.day-end]="period === 'overnight'">{{ count(date, period, sortedFilteredPeople()) }}</td> } } }
               </tr>
             </tfoot>
           </table>
@@ -169,10 +176,10 @@
       <section class="people-view">
         <div class="section-title compact"><div><p class="eyebrow">Stammdaten</p><h3>Personen</h3></div><div class="section-actions"><button class="secondary-action" type="button" (click)="importOpen.set(true)">CSV importieren</button><button class="primary-action" type="button" (click)="openPerson()">+ Person</button></div></div>
         <div class="people-table-wrap">
-          <table class="people-table"><thead><tr><th>Name</th><th>Geschlecht</th><th>Rolle</th><th>Unterkurs</th><th>Herkunft</th><th></th></tr></thead><tbody>
-            @for (person of activePeople(); track person.id) {
-              <tr><th>{{ person.firstName }} {{ person.lastName }}</th><td>{{ person.gender }}</td><td>{{ person.role }}</td><td>{{ subTrainingNameFor(person) }}</td><td>{{ person.external ? 'Extern' : 'Intern' }}</td><td><button class="text-action" type="button" (click)="openPerson(person)">Bearbeiten</button><button class="icon-action danger" type="button" (click)="archivePerson(person)" aria-label="Archivieren">×</button></td></tr>
-            } @empty { <tr><td colspan="6" class="no-results">Noch keine Personen. Erfasse sie manuell oder importiere eine CSV-Datei.</td></tr> }
+          <table class="people-table"><thead><tr><th><button class="sort-head plain" type="button" (click)="setPeopleSort('lastName')">Name <span>{{ sortLabel(peopleSort(), 'lastName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('firstName')">Vorname <span>{{ sortLabel(peopleSort(), 'firstName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('gender')">Geschlecht <span>{{ sortLabel(peopleSort(), 'gender') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('role')">Rolle <span>{{ sortLabel(peopleSort(), 'role') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('subTraining')">Unterkurs <span>{{ sortLabel(peopleSort(), 'subTraining') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('origin')">Herkunft <span>{{ sortLabel(peopleSort(), 'origin') }}</span></button></th><th></th></tr></thead><tbody>
+            @for (person of sortedPeople(); track person.id) {
+              <tr><th>{{ person.lastName }}</th><td>{{ person.firstName }}</td><td>{{ person.gender }}</td><td>{{ person.role }}</td><td>{{ subTrainingNameFor(person) }}</td><td>{{ person.external ? 'Extern' : 'Intern' }}</td><td><button class="text-action" type="button" (click)="openPerson(person)">Bearbeiten</button><button class="icon-action danger" type="button" (click)="archivePerson(person)" aria-label="Archivieren">×</button></td></tr>
+            } @empty { <tr><td colspan="7" class="no-results">Noch keine Personen. Erfasse sie manuell oder importiere eine CSV-Datei.</td></tr> }
           </tbody></table>
         </div>
       </section>
