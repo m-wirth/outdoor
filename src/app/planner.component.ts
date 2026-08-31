@@ -347,6 +347,18 @@ export class PlannerComponent {
     return training ? people.filter((person) => effectivePeriod(training, person, date, period)).length : 0;
   }
 
+  genderCount(date: string, period: Period, gender: Gender): number {
+    return this.count(date, period, this.activePeople().filter((person) => person.gender === gender));
+  }
+
+  periodTotal(period: Period): number {
+    return this.dates().reduce((total, date) => total + this.count(date, period), 0);
+  }
+
+  genderTotal(period: Period, gender: Gender): number {
+    return this.dates().reduce((total, date) => total + this.genderCount(date, period, gender), 0);
+  }
+
   fullyAbsent(date: string): number {
     return this.activePeople().filter((person) => !this.presence(person, date, 'morning') && !this.presence(person, date, 'afternoon')).length;
   }

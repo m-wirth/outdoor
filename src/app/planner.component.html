@@ -189,6 +189,30 @@
       <section class="report-view">
         <div class="section-title compact no-print"><div><p class="eyebrow">Verpflegung</p><h3>Küchenrapport</h3></div><div class="section-actions"><button class="secondary-action" type="button" (click)="exportKitchen()">CSV exportieren</button><button class="primary-action" type="button" (click)="printReport()">Drucken / PDF</button></div></div>
         <div class="print-title"><p>Trailbox · Personalplaner</p><h3>Verpflegung {{ training.name }}</h3><span>{{ training.startDate }} – {{ training.endDate }}</span></div>
+        <table class="print-meal-table">
+          <thead>
+            <tr><th rowspan="2">Datum</th><th colspan="3">Mittagessen</th><th colspan="3">Abendessen</th><th colspan="3">Übernachtung</th></tr>
+            <tr><th>W</th><th>M</th><th>Total</th><th>W</th><th>M</th><th>Total</th><th>W</th><th>M</th><th>Total</th></tr>
+          </thead>
+          <tbody>
+            @for (date of dates(); track date) {
+              <tr>
+                <th>{{ dateLabel(date) }}</th>
+                <td>{{ genderCount(date, 'lunch', 'Weiblich') }}</td><td>{{ genderCount(date, 'lunch', 'Männlich') }}</td><td>{{ count(date, 'lunch') }}</td>
+                <td>{{ genderCount(date, 'dinner', 'Weiblich') }}</td><td>{{ genderCount(date, 'dinner', 'Männlich') }}</td><td>{{ count(date, 'dinner') }}</td>
+                <td>{{ genderCount(date, 'overnight', 'Weiblich') }}</td><td>{{ genderCount(date, 'overnight', 'Männlich') }}</td><td>{{ count(date, 'overnight') }}</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Total</th>
+              <td>{{ genderTotal('lunch', 'Weiblich') }}</td><td>{{ genderTotal('lunch', 'Männlich') }}</td><td>{{ periodTotal('lunch') }}</td>
+              <td>{{ genderTotal('dinner', 'Weiblich') }}</td><td>{{ genderTotal('dinner', 'Männlich') }}</td><td>{{ periodTotal('dinner') }}</td>
+              <td>{{ genderTotal('overnight', 'Weiblich') }}</td><td>{{ genderTotal('overnight', 'Männlich') }}</td><td>{{ periodTotal('overnight') }}</td>
+            </tr>
+          </tfoot>
+        </table>
         <div class="report-days">
           @for (date of dates(); track date) {
             <article class="report-day">
