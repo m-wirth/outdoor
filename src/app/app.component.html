@@ -30,24 +30,30 @@
     </nav>
   </header>
 
-  <main class="app-main">
+  <main class="app-main" [class.planner-main]="view() === 'planner'">
     @if (view() === 'dashboard') {
       <section class="dashboard-intro">
         <div><p class="eyebrow">Deine Trailbox</p><h1>Was steht heute an?</h1></div>
         <p>Praktische Helfer für Planung, Administration und alles dazwischen.</p>
       </section>
       <section class="tile-grid" aria-label="Verfügbare Werkzeuge">
+        <button class="feature-tile active planner-tile" type="button" (click)="open('planner')">
+          <span class="tile-number">01</span><span class="planner-art" aria-hidden="true"><i></i><i></i><i></i><b>18</b><b>31</b><b>27</b></span>
+          <span class="tile-copy"><small>Planung</small><strong>Personalplaner</strong><span>Anwesenheit, Mahlzeiten & Übernachtungen</span></span>
+          <span class="tile-arrow">↗</span>
+        </button>
         <button class="feature-tile active" type="button" (click)="open('checker')">
-          <span class="tile-number">01</span><span class="tile-art" aria-hidden="true"><i></i><b>✓</b></span>
+          <span class="tile-number">02</span><span class="tile-art" aria-hidden="true"><i></i><b>✓</b></span>
           <span class="tile-copy"><small>Administration</small><strong>Import-Checker</strong><span>Personen-CSV vor dem Import prüfen</span></span>
           <span class="tile-arrow">↗</span>
         </button>
-        <article class="feature-tile upcoming"><span class="tile-number">02</span><span class="ghost-lines"></span><span class="tile-copy"><small>Demnächst</small><strong>Touren-Wetter</strong><span>Wetterfenster auf einen Blick</span></span></article>
-        <article class="feature-tile upcoming"><span class="tile-number">03</span><span class="ghost-lines"></span><span class="tile-copy"><small>Demnächst</small><strong>Packlisten</strong><span>Nichts Wichtiges vergessen</span></span></article>
+        <article class="feature-tile upcoming"><span class="tile-number">03</span><span class="ghost-lines"></span><span class="tile-copy"><small>Demnächst</small><strong>Touren-Wetter</strong><span>Wetterfenster auf einen Blick</span></span></article>
       </section>
       <footer class="dashboard-footer"><span>Schweizer Berge, digital unterstützt.</span><span>Version 1.0</span></footer>
-    } @else {
+    } @else if (view() === 'checker') {
       <app-csv-checker />
+    } @else {
+      <app-planner />
     }
   </main>
 }

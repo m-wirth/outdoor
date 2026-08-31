@@ -1,6 +1,10 @@
 # Trailbox
 
-Angular-Webanwendung mit passwortgeschütztem Dashboard und lokalem CSV-Import-Checker für den Personenimport Kaderbildung.
+Angular-Webanwendung mit passwortgeschütztem Dashboard, lokalem Personalplaner und CSV-Import-Checker.
+
+## Personalplaner
+
+Der Personalplaner verwaltet Trainings und Unterkurse, Personen, Anwesenheitsperioden, Mahlzeiten, Absenzen und billable person-nights. Sämtliche Planungsdaten liegen ausschliesslich in IndexedDB im jeweiligen Browser. JSON-Sicherungen können exportiert und wiederhergestellt werden; Küchenzahlen lassen sich als CSV exportieren oder drucken.
 
 ## Entwicklung
 

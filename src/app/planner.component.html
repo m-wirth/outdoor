@@ -1,0 +1,263 @@
+<section class="planner-shell">
+  <header class="planner-head">
+    <div>
+      <p class="eyebrow">Personalplaner</p>
+      <h2>Alle Personen. Jeder Zeitraum. Eine Übersicht.</h2>
+      <p>Anwesenheiten, Mahlzeiten, Absenzen und Übernachtungen bleiben lokal auf diesem Gerät.</p>
+    </div>
+    <div class="head-actions">
+      <label class="file-button secondary-action">Sicherung laden<input type="file" accept=".json,application/json" (change)="restore($event)"></label>
+      <button type="button" class="secondary-action" (click)="backup()">Sichern</button>
+    </div>
+  </header>
+
+  @if (notice()) { <div class="toast success" role="status">✓ {{ notice() }}</div> }
+  @if (error()) { <div class="toast error" role="alert">! {{ error() }}</div> }
+
+  @if (!store.ready()) {
+    <div class="loading"><span></span> Lokale Planung wird geladen …</div>
+  } @else if (!activeTraining() || creatingTraining()) {
+    <section class="empty-state">
+      <div class="empty-art" aria-hidden="true">⌁</div>
+      <div>
+        <p class="eyebrow">{{ activeTraining() ? 'Neues Training' : 'Erster Schritt' }}</p>
+        <h3>{{ activeTraining() ? 'Weiteres Training anlegen' : 'Lege dein erstes Training an' }}</h3>
+        <p>Danach kannst du Unterkurse konfigurieren und Personen importieren.</p>
+      </div>
+      <form class="training-form" (ngSubmit)="createTraining()">
+        <label><span>Name</span><input name="new-name" [(ngModel)]="trainingDraft.name" placeholder="z. B. GTQ 2026-2" required></label>
+        <label><span>Start</span><input name="new-start" type="date" [(ngModel)]="trainingDraft.startDate" required></label>
+        <label><span>Ende</span><input name="new-end" type="date" [(ngModel)]="trainingDraft.endDate" required></label>
+        <label><span>Event Hauptleiter</span><input name="new-lead" [(ngModel)]="trainingDraft.mainInstructor" placeholder="Vorname Name"></label>
+        @if (activeTraining()) { <button class="secondary-action" type="button" (click)="creatingTraining.set(false)">Abbrechen</button> }
+        <button class="primary-action" type="submit">Training erstellen →</button>
+      </form>
+    </section>
+  } @else if (activeTraining(); as training) {
+    <div class="training-bar">
+      <label>
+        <span>Aktives Training</span>
+        <select [ngModel]="training.id" (ngModelChange)="selectTraining($event)">
+          @for (item of store.state().trainings; track item.id) { <option [value]="item.id">{{ item.name }}</option> }
+        </select>
+      </label>
+      <div class="training-meta">
+        <span>{{ dateLabel(training.startDate) }} – {{ dateLabel(training.endDate) }}</span>
+        <span>{{ activePeople().length }} Personen</span>
+        <span [class.saving]="store.saving()">{{ store.saving() ? 'Speichert …' : 'Lokal gespeichert' }}</span>
+      </div>
+      <button type="button" class="new-training" (click)="creatingTraining.set(true); trainingDraft = { name: '', startDate: training.startDate, endDate: training.endDate, mainInstructor: '' }">+ Neues Training</button>
+    </div>
+
+    <nav class="planner-tabs" aria-label="Bereiche">
+      <button type="button" [class.active]="tab() === 'dashboard'" (click)="tab.set('dashboard')">Dashboard</button>
+      <button type="button" [class.active]="tab() === 'matrix'" (click)="tab.set('matrix')">Planung</button>
+      <button type="button" [class.active]="tab() === 'people'" (click)="tab.set('people')">Personen <b>{{ activePeople().length }}</b></button>
+      <button type="button" [class.active]="tab() === 'report'" (click)="tab.set('report')">Küche</button>
+      <button type="button" [class.active]="tab() === 'settings'" (click)="tab.set('settings')">Training</button>
+    </nav>
+
+    @if (tab() === 'dashboard') {
+      <section class="dashboard-view">
+        <div class="section-title">
+          <div><p class="eyebrow">Lagebild</p><h3>{{ training.name }}</h3></div>
+          <button class="primary-action" type="button" (click)="tab.set('matrix')">Plan öffnen →</button>
+        </div>
+        <div class="kpi-grid">
+          <article class="kpi featured"><span>Teilnehmende</span><strong>{{ participants().length }}</strong><small>in {{ training.subTrainings.length }} Unterkursen</small></article>
+          <article class="kpi"><span>Personen total</span><strong>{{ activePeople().length }}</strong><small>{{ activePeople().length - participants().length }} Kader / Gäste</small></article>
+          <article class="kpi"><span>Übernachtungen</span><strong>{{ totalNights() }}</strong><small>billable person-nights</small></article>
+          <article class="kpi" [class.attention]="pendingAbsences()"><span>Offene Absenzen</span><strong>{{ pendingAbsences() }}</strong><small>Entscheid ausstehend</small></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="panel daily-panel">
+            <div class="panel-head"><div><p class="eyebrow">Pro Tag</p><h4>Präsenz & Verpflegung</h4></div><span>VM / NM gemäss J+S</span></div>
+            <div class="table-scroll">
+              <table class="summary-table">
+                <thead><tr><th>Tag</th><th>VM</th><th>NM</th><th>Abwesend</th><th>Mittag</th><th>Abend</th><th>ÜN</th></tr></thead>
+                <tbody>
+                  @for (date of dates(); track date) {
+                    <tr>
+                      <th>{{ dateLabel(date) }}</th>
+                      <td>{{ count(date, 'morning') }}</td><td>{{ count(date, 'afternoon') }}</td><td>{{ fullyAbsent(date) }}</td>
+                      <td class="meal-count">{{ count(date, 'lunch') }}</td><td class="meal-count">{{ count(date, 'dinner') }}</td><td>{{ count(date, 'overnight') }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel breakdown-panel">
+            <div class="panel-head"><div><p class="eyebrow">Teilnehmende</p><h4>Unterkurs & Geschlecht</h4></div></div>
+            @if (participantBreakdown().length) {
+              <div class="breakdown-list">
+                @for (row of participantBreakdown(); track row.course + row.gender) {
+                  <div><span><b>{{ row.course }}</b><small>{{ row.gender }}</small></span><strong>{{ row.count }}</strong></div>
+                }
+              </div>
+            } @else { <p class="muted-empty">Noch keine Teilnehmenden erfasst.</p> }
+          </section>
+        </div>
+
+        @if (training.absences.length) {
+          <section class="panel absence-panel">
+            <div class="panel-head"><div><p class="eyebrow">Absenzen</p><h4>Anträge & Entscheide</h4></div><button class="secondary-action" type="button" (click)="openAbsence()">+ Absenz</button></div>
+            <div class="absence-list">
+              @for (absence of training.absences; track absence.id) {
+                <article class="absence-row" [attr.data-status]="absence.status">
+                  <div><strong>{{ personName(absence.personId) }}</strong><span>{{ absence.departureAt.replace('T', ' ') }} → {{ absence.returnAt.replace('T', ' ') }}</span><p>{{ absence.reason }}</p></div>
+                  <label><span>Entscheid</span><select [ngModel]="absence.status" (ngModelChange)="updateAbsenceStatus(absence.id, $event)"><option value="pending">Offen</option><option value="approved">Bewilligt</option><option value="rejected">Abgelehnt</option></select></label>
+                  <label class="decision"><span>Begründung</span><input [ngModel]="absence.decision" (change)="updateAbsenceDecision(absence.id, $any($event.target).value)" placeholder="Freitext"></label>
+                  <button class="icon-action danger" type="button" (click)="deleteAbsence(absence.id)" aria-label="Absenz löschen">×</button>
+                </article>
+              }
+            </div>
+          </section>
+        }
+      </section>
+    }
+
+    @if (tab() === 'matrix') {
+      <section class="matrix-view">
+        <div class="section-title compact">
+          <div><p class="eyebrow">Gesamtübersicht</p><h3>Anwesenheitsplan</h3><p>Klick auf ein Feld wechselt Ja/Nein. Punkt = Mahlzeit manuell angepasst.</p></div>
+          <div class="section-actions"><button class="secondary-action" type="button" (click)="openAbsence()">+ Absenz</button><button class="primary-action" type="button" (click)="openPerson()">+ Person</button></div>
+        </div>
+        <div class="filters">
+          <input [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Person suchen …" aria-label="Person suchen">
+          <select [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)"><option value="">Alle Rollen</option>@for (role of roles; track role) { <option [value]="role">{{ role }}</option> }</select>
+          <select [ngModel]="courseFilter()" (ngModelChange)="courseFilter.set($event)"><option value="">Alle Unterkurse</option>@for (course of training.subTrainings; track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select>
+          <span>{{ filteredPeople().length }} angezeigt</span>
+        </div>
+        <div class="matrix-scroll">
+          <table class="planner-matrix">
+            <thead>
+              <tr><th class="sticky person-col" rowspan="2">Person</th><th class="sticky role-col" rowspan="2">Rolle</th><th class="sticky course-col" rowspan="2">UK</th>
+                @for (date of dates(); track date) { <th class="date-head" colspan="5">{{ dateLabel(date) }}</th> }
+              </tr>
+              <tr>@for (date of dates(); track date) { @for (period of periods; track period) { <th [title]="periodLabels[period].long">{{ periodLabels[period].short }}</th> } }</tr>
+            </thead>
+            <tbody>
+              @for (person of filteredPeople(); track person.id) {
+                <tr>
+                  <th class="sticky person-col"><button class="person-link" type="button" (click)="openPerson(person)"><span>{{ person.firstName }} {{ person.lastName }}</span>@if (person.external) { <small>extern</small> }</button></th>
+                  <td class="sticky role-col">{{ person.role }}</td><td class="sticky course-col">{{ subTrainingNameFor(person) }}</td>
+                  @for (date of dates(); track date) {
+                    @for (period of periods; track period) {
+                      <td class="state-cell" [class.day-end]="period === 'overnight'" [class.overridden]="isMealOverride(person, date, period)" [class.absence]="hasApprovedAbsence(person, date, period)">
+                        <button type="button" [class.yes]="presence(person, date, period)" [attr.aria-pressed]="presence(person, date, period)" [disabled]="hasApprovedAbsence(person, date, period)" (click)="toggle(person, date, period)" [title]="periodLabels[period].long + ': ' + (presence(person, date, period) ? 'Ja' : 'Nein')">{{ presence(person, date, period) ? '✓' : '–' }}</button>
+                      </td>
+                    }
+                  }
+                </tr>
+              } @empty { <tr><td class="no-results" [attr.colspan]="3 + dates().length * 5">Keine Personen für diesen Filter.</td></tr> }
+            </tbody>
+            <tfoot>
+              <tr><th class="sticky person-col">Total</th><td class="sticky role-col"></td><td class="sticky course-col"></td>
+                @for (date of dates(); track date) { @for (period of periods; track period) { <td [class.day-end]="period === 'overnight'">{{ count(date, period, filteredPeople()) }}</td> } }
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="matrix-legend"><span><i class="yes"></i> Ja</span><span><i></i> Nein</span><span><i class="absent"></i> Bewilligte Absenz</span><span><b>•</b> Mahlzeit manuell</span></div>
+      </section>
+    }
+
+    @if (tab() === 'people') {
+      <section class="people-view">
+        <div class="section-title compact"><div><p class="eyebrow">Stammdaten</p><h3>Personen</h3></div><div class="section-actions"><button class="secondary-action" type="button" (click)="importOpen.set(true)">CSV importieren</button><button class="primary-action" type="button" (click)="openPerson()">+ Person</button></div></div>
+        <div class="people-table-wrap">
+          <table class="people-table"><thead><tr><th>Name</th><th>Geschlecht</th><th>Rolle</th><th>Unterkurs</th><th>Herkunft</th><th></th></tr></thead><tbody>
+            @for (person of activePeople(); track person.id) {
+              <tr><th>{{ person.firstName }} {{ person.lastName }}</th><td>{{ person.gender }}</td><td>{{ person.role }}</td><td>{{ subTrainingNameFor(person) }}</td><td>{{ person.external ? 'Extern' : 'Intern' }}</td><td><button class="text-action" type="button" (click)="openPerson(person)">Bearbeiten</button><button class="icon-action danger" type="button" (click)="archivePerson(person)" aria-label="Archivieren">×</button></td></tr>
+            } @empty { <tr><td colspan="6" class="no-results">Noch keine Personen. Erfasse sie manuell oder importiere eine CSV-Datei.</td></tr> }
+          </tbody></table>
+        </div>
+      </section>
+    }
+
+    @if (tab() === 'report') {
+      <section class="report-view">
+        <div class="section-title compact no-print"><div><p class="eyebrow">Verpflegung</p><h3>Küchenrapport</h3></div><div class="section-actions"><button class="secondary-action" type="button" (click)="exportKitchen()">CSV exportieren</button><button class="primary-action" type="button" (click)="printReport()">Drucken / PDF</button></div></div>
+        <div class="print-title"><p>Trailbox · Personalplaner</p><h3>Verpflegung {{ training.name }}</h3><span>{{ training.startDate }} – {{ training.endDate }}</span></div>
+        <div class="report-days">
+          @for (date of dates(); track date) {
+            <article class="report-day">
+              <header><div><small>Tag</small><strong>{{ dateLabel(date) }}</strong></div><div class="report-kpis"><span><b>{{ count(date, 'lunch') }}</b> Mittag</span><span><b>{{ count(date, 'dinner') }}</b> Abend</span><span><b>{{ count(date, 'overnight') }}</b> Übernachtung</span></div></header>
+              <div class="meal-detail"><div><strong>Mittagessen</strong><p>{{ mealBreakdown(date, 'lunch') || 'Keine' }}</p></div><div><strong>Abendessen</strong><p>{{ mealBreakdown(date, 'dinner') || 'Keine' }}</p></div></div>
+            </article>
+          }
+        </div>
+        <div class="report-total"><span>Übernachtungen total</span><strong>{{ totalNights() }}</strong></div>
+      </section>
+    }
+
+    @if (tab() === 'settings') {
+      <section class="settings-view">
+        <div class="section-title compact"><div><p class="eyebrow">Konfiguration</p><h3>Training & Unterkurse</h3></div></div>
+        <div class="settings-grid">
+          <form class="panel settings-form" (ngSubmit)="saveTraining()">
+            <div class="panel-head"><div><p class="eyebrow">Training</p><h4>Grunddaten</h4></div></div>
+            <label><span>Name</span><input name="training-name" [(ngModel)]="trainingDraft.name" required></label>
+            <div class="field-row"><label><span>Start</span><input name="training-start" type="date" [(ngModel)]="trainingDraft.startDate" required></label><label><span>Ende</span><input name="training-end" type="date" [(ngModel)]="trainingDraft.endDate" required></label></div>
+            <label><span>Event Hauptleiter</span><input name="training-lead" [(ngModel)]="trainingDraft.mainInstructor" placeholder="Vorname Name"></label>
+            <div class="form-actions"><button type="button" class="danger-link" (click)="deleteTraining()">Training löschen</button><button class="primary-action" type="submit">Speichern</button></div>
+          </form>
+          <section class="panel courses-panel">
+            <div class="panel-head"><div><p class="eyebrow">Unterkurse</p><h4>Ausbildungen</h4></div></div>
+            <div class="course-list">
+              @for (course of training.subTrainings; track course.id) {
+                <div class="course-row"><input #courseName [value]="course.name" aria-label="Name Unterkurs"><input #instructors [value]="course.instructors.join(', ')" placeholder="Leitende, kommagetrennt" aria-label="Leitende"><button type="button" class="text-action" (click)="updateSubTraining(course.id, courseName.value, instructors.value)">Speichern</button><button type="button" class="icon-action danger" (click)="deleteSubTraining(course.id)">×</button></div>
+              }
+            </div>
+            <div class="new-course"><input [(ngModel)]="subTrainingName" placeholder="z. B. GLK"><input [(ngModel)]="subTrainingInstructors" placeholder="Leitende, kommagetrennt"><button class="secondary-action" type="button" (click)="addSubTraining()">+ Hinzufügen</button></div>
+          </section>
+        </div>
+      </section>
+    }
+  }
+</section>
+
+@if (personEditorOpen()) {
+  <div class="modal-backdrop" (click)="personEditorOpen.set(false)"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="person-title" (click)="$event.stopPropagation()">
+    <header><div><p class="eyebrow">Person</p><h3 id="person-title">{{ editingPersonId() ? 'Person bearbeiten' : 'Person hinzufügen' }}</h3></div><button type="button" class="modal-close" (click)="personEditorOpen.set(false)">×</button></header>
+    <form (ngSubmit)="savePerson()">
+      <div class="field-row"><label><span>Vorname</span><input name="first-name" [(ngModel)]="personDraft.firstName" required></label><label><span>Name</span><input name="last-name" [(ngModel)]="personDraft.lastName" required></label></div>
+      <label><span>Geschlecht</span><select name="gender" [(ngModel)]="personDraft.gender">@for (gender of genders; track gender) { <option [value]="gender">{{ gender }}</option> }</select></label>
+      <label><span>Rolle</span><select name="role" [(ngModel)]="personDraft.role">@for (role of roles; track role) { <option [value]="role">{{ role }}</option> }</select></label>
+      <label><span>Unterkurs</span><select name="sub-training" [(ngModel)]="personDraft.subTrainingId"><option [ngValue]="null">Kein Unterkurs</option>@for (course of activeTraining()?.subTrainings ?? []; track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label>
+      <label class="check-label"><input name="external" type="checkbox" [(ngModel)]="personDraft.external"><span>Person ist extern</span></label>
+      <div class="modal-actions"><button class="secondary-action" type="button" (click)="personEditorOpen.set(false)">Abbrechen</button><button class="primary-action" type="submit">Speichern</button></div>
+    </form>
+  </section></div>
+}
+
+@if (absenceEditorOpen()) {
+  <div class="modal-backdrop" (click)="absenceEditorOpen.set(false)"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="absence-title" (click)="$event.stopPropagation()">
+    <header><div><p class="eyebrow">Absenz</p><h3 id="absence-title">Abwesenheit erfassen</h3></div><button type="button" class="modal-close" (click)="absenceEditorOpen.set(false)">×</button></header>
+    <form (ngSubmit)="saveAbsence()">
+      <label><span>Person</span><select name="absence-person" [(ngModel)]="absenceDraft.personId" required><option value="">Person auswählen</option>@for (person of activePeople(); track person.id) { <option [value]="person.id">{{ person.firstName }} {{ person.lastName }}</option> }</select></label>
+      <div class="field-row"><label><span>Geht</span><input name="departure" type="datetime-local" [(ngModel)]="absenceDraft.departureAt" required></label><label><span>Zurück</span><input name="return" type="datetime-local" [(ngModel)]="absenceDraft.returnAt" required></label></div>
+      <label><span>Grund</span><textarea name="reason" [(ngModel)]="absenceDraft.reason" rows="3" required></textarea></label>
+      <label><span>Entscheid</span><select name="absence-status" [(ngModel)]="absenceDraft.status"><option value="pending">Offen</option><option value="approved">Bewilligt</option><option value="rejected">Abgelehnt</option></select></label>
+      <label><span>Begründung zum Entscheid</span><textarea name="decision" [(ngModel)]="absenceDraft.decision" rows="2"></textarea></label>
+      <div class="modal-actions"><button class="secondary-action" type="button" (click)="absenceEditorOpen.set(false)">Abbrechen</button><button class="primary-action" type="submit">Speichern</button></div>
+    </form>
+  </section></div>
+}
+
+@if (importOpen()) {
+  <div class="modal-backdrop" (click)="importOpen.set(false)"><section class="modal wide-modal" role="dialog" aria-modal="true" aria-labelledby="import-title" (click)="$event.stopPropagation()">
+    <header><div><p class="eyebrow">CSV-Import</p><h3 id="import-title">Personen importieren</h3></div><button type="button" class="modal-close" (click)="importOpen.set(false)">×</button></header>
+    <div class="import-actions"><label class="primary-action file-button">CSV auswählen<input type="file" accept=".csv,text/csv" (change)="readImport($event)"></label><button class="secondary-action" type="button" (click)="downloadTemplate()">Vorlage herunterladen</button></div>
+    @if (importRows().length) {
+      <p class="import-summary"><strong>{{ validImportCount() }}</strong> bereit · {{ importRows().length - validImportCount() }} ignoriert oder fehlerhaft · {{ importFileName() }}</p>
+      <div class="import-preview"><table><thead><tr><th>Zeile</th><th>Name</th><th>Rolle</th><th>Unterkurs</th><th>Status</th></tr></thead><tbody>
+        @for (row of importRows(); track row.line) { <tr [class.invalid]="!row.valid"><td>{{ row.line }}</td><th>{{ row.firstName }} {{ row.lastName }}</th><td>{{ row.role }}</td><td>{{ row.subTrainingId ? 'Zugewiesen' : '–' }}</td><td>{{ row.duplicate ? 'Duplikat' : row.errors.join(' ') || 'Bereit' }}</td></tr> }
+      </tbody></table></div>
+      <div class="modal-actions"><button class="secondary-action" type="button" (click)="importOpen.set(false)">Abbrechen</button><button class="primary-action" type="button" [disabled]="!validImportCount()" (click)="confirmImport()">{{ validImportCount() }} importieren</button></div>
+    } @else { <div class="import-help"><strong>Standardspalten</strong><code>first_name;last_name;gender;role;sub_training;external</code><p>Duplikate werden übersprungen. Alle Daten bleiben auf diesem Gerät.</p></div> }
+  </section></div>
+}
