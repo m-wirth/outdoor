@@ -31,6 +31,7 @@ export interface PlannerPerson {
   role: PlannerRole;
   subTrainingId: string | null;
   external: boolean;
+  expert: boolean;
   archived: boolean;
 }
 
@@ -79,6 +80,7 @@ export interface PersonDraft {
   role: PlannerRole;
   subTrainingId: string | null;
   external: boolean;
+  expert: boolean;
 }
 
 export interface ImportRow extends PersonDraft {
@@ -89,4 +91,3 @@ export interface ImportRow extends PersonDraft {
 }
 
 export const EMPTY_STATE: PlannerState = { version: 1, trainings: [] };
-

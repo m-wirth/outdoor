@@ -66,6 +66,7 @@
         <div class="kpi-grid">
           <article class="kpi featured"><span>Teilnehmende</span><strong>{{ participants().length }}</strong><small>in {{ training.subTrainings.length }} Unterkursen</small></article>
           <article class="kpi"><span>Personen total</span><strong>{{ activePeople().length }}</strong><small>{{ activePeople().length - participants().length }} Kader / Gäste</small></article>
+          <article class="kpi"><span>Experten</span><strong>{{ experts().length }}</strong><small>markierte Leitende / Staff</small></article>
           <article class="kpi"><span>Übernachtungen</span><strong>{{ totalNights() }}</strong><small>billable person-nights</small></article>
           <article class="kpi" [class.attention]="pendingAbsences()"><span>Offene Absenzen</span><strong>{{ pendingAbsences() }}</strong><small>Entscheid ausstehend</small></article>
         </div>
@@ -98,6 +99,20 @@
                 }
               </div>
             } @else { <p class="muted-empty">Noch keine Teilnehmenden erfasst.</p> }
+          </section>
+
+          <section class="panel expert-panel">
+            <div class="panel-head"><div><p class="eyebrow">Experten</p><h4>Verfügbarkeit pro Tag</h4></div></div>
+            <div class="table-scroll">
+              <table class="summary-table expert-table">
+                <thead><tr><th>Tag</th><th>Anzahl</th><th>Verfügbar</th></tr></thead>
+                <tbody>
+                  @for (date of dates(); track date) {
+                    <tr><th>{{ dateLabel(date) }}</th><td>{{ expertAvailability(date).length }}</td><td>{{ expertNames(date) || '–' }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           </section>
         </div>
 
@@ -176,10 +191,10 @@
       <section class="people-view">
         <div class="section-title compact"><div><p class="eyebrow">Stammdaten</p><h3>Personen</h3></div><div class="section-actions"><button class="secondary-action" type="button" (click)="importOpen.set(true)">CSV importieren</button><button class="primary-action" type="button" (click)="openPerson()">+ Person</button></div></div>
         <div class="people-table-wrap">
-          <table class="people-table"><thead><tr><th><button class="sort-head plain" type="button" (click)="setPeopleSort('lastName')">Name <span>{{ sortLabel(peopleSort(), 'lastName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('firstName')">Vorname <span>{{ sortLabel(peopleSort(), 'firstName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('gender')">Geschlecht <span>{{ sortLabel(peopleSort(), 'gender') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('role')">Rolle <span>{{ sortLabel(peopleSort(), 'role') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('subTraining')">Unterkurs <span>{{ sortLabel(peopleSort(), 'subTraining') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('origin')">Herkunft <span>{{ sortLabel(peopleSort(), 'origin') }}</span></button></th><th></th></tr></thead><tbody>
+          <table class="people-table"><thead><tr><th><button class="sort-head plain" type="button" (click)="setPeopleSort('lastName')">Name <span>{{ sortLabel(peopleSort(), 'lastName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('firstName')">Vorname <span>{{ sortLabel(peopleSort(), 'firstName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('gender')">Geschlecht <span>{{ sortLabel(peopleSort(), 'gender') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('role')">Rolle <span>{{ sortLabel(peopleSort(), 'role') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('subTraining')">Unterkurs <span>{{ sortLabel(peopleSort(), 'subTraining') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('origin')">Herkunft <span>{{ sortLabel(peopleSort(), 'origin') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('expert')">Experte <span>{{ sortLabel(peopleSort(), 'expert') }}</span></button></th><th></th></tr></thead><tbody>
             @for (person of sortedPeople(); track person.id) {
-              <tr><th>{{ person.lastName }}</th><td>{{ person.firstName }}</td><td>{{ person.gender }}</td><td>{{ person.role }}</td><td>{{ subTrainingNameFor(person) }}</td><td>{{ person.external ? 'Extern' : 'Intern' }}</td><td><button class="text-action" type="button" (click)="openPerson(person)">Bearbeiten</button><button class="icon-action danger" type="button" (click)="archivePerson(person)" aria-label="Archivieren">×</button></td></tr>
-            } @empty { <tr><td colspan="7" class="no-results">Noch keine Personen. Erfasse sie manuell oder importiere eine CSV-Datei.</td></tr> }
+              <tr><th>{{ person.lastName }}</th><td>{{ person.firstName }}</td><td>{{ person.gender }}</td><td>{{ person.role }}</td><td>{{ subTrainingNameFor(person) }}</td><td>{{ person.external ? 'Extern' : 'Intern' }}</td><td>{{ person.expert ? 'Ja' : 'Nein' }}</td><td><button class="text-action" type="button" (click)="openPerson(person)">Bearbeiten</button><button class="icon-action danger" type="button" (click)="archivePerson(person)" aria-label="Archivieren">×</button></td></tr>
+            } @empty { <tr><td colspan="8" class="no-results">Noch keine Personen. Erfasse sie manuell oder importiere eine CSV-Datei.</td></tr> }
           </tbody></table>
         </div>
       </section>
@@ -260,6 +275,7 @@
       <label><span>Rolle</span><select name="role" [(ngModel)]="personDraft.role">@for (role of roles; track role) { <option [value]="role">{{ role }}</option> }</select></label>
       <label><span>Unterkurs</span><select name="sub-training" [(ngModel)]="personDraft.subTrainingId"><option [ngValue]="null">Kein Unterkurs</option>@for (course of activeTraining()?.subTrainings ?? []; track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label>
       <label class="check-label"><input name="external" type="checkbox" [(ngModel)]="personDraft.external"><span>Person ist extern</span></label>
+      @if (canBeExpert(personDraft.role)) { <label class="check-label"><input name="expert" type="checkbox" [(ngModel)]="personDraft.expert"><span>Experte</span></label> }
       <div class="modal-actions"><button class="secondary-action" type="button" (click)="personEditorOpen.set(false)">Abbrechen</button><button class="primary-action" type="submit">Speichern</button></div>
     </form>
   </section></div>
@@ -289,6 +305,6 @@
         @for (row of importRows(); track row.line) { <tr [class.invalid]="!row.valid"><td>{{ row.line }}</td><th>{{ row.firstName }} {{ row.lastName }}</th><td>{{ row.role }}</td><td>{{ row.subTrainingId ? 'Zugewiesen' : '–' }}</td><td>{{ row.duplicate ? 'Duplikat' : row.errors.join(' ') || 'Bereit' }}</td></tr> }
       </tbody></table></div>
       <div class="modal-actions"><button class="secondary-action" type="button" (click)="importOpen.set(false)">Abbrechen</button><button class="primary-action" type="button" [disabled]="!validImportCount()" (click)="confirmImport()">{{ validImportCount() }} importieren</button></div>
-    } @else { <div class="import-help"><strong>Standardspalten</strong><code>first_name;last_name;gender;role;sub_training;external</code><p>Duplikate werden übersprungen. Alle Daten bleiben auf diesem Gerät.</p></div> }
+    } @else { <div class="import-help"><strong>Standardspalten</strong><code>first_name;last_name;gender;role;sub_training;external;expert</code><p>Duplikate werden übersprungen. Alle Daten bleiben auf diesem Gerät.</p></div> }
   </section></div>
 }

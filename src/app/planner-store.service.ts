@@ -63,7 +63,7 @@ export class PlannerStore {
   }
 
   addPerson(trainingId: string, draft: PersonDraft): PlannerPerson {
-    const person: PlannerPerson = { id: id('person'), ...draft, archived: false };
+    const person: PlannerPerson = { id: id('person'), ...normalizePersonDraft(draft), archived: false };
     this.updateOne(trainingId, (training) => ({ ...training, people: [...training.people, person] }));
     return person;
   }
@@ -71,14 +71,14 @@ export class PlannerStore {
   addPeople(trainingId: string, drafts: PersonDraft[]): void {
     this.updateOne(trainingId, (training) => ({
       ...training,
-      people: [...training.people, ...drafts.map((draft) => ({ id: id('person'), ...draft, archived: false }))]
+      people: [...training.people, ...drafts.map((draft) => ({ id: id('person'), ...normalizePersonDraft(draft), archived: false }))]
     }));
   }
 
   updatePerson(trainingId: string, personId: string, draft: PersonDraft): void {
     this.updateOne(trainingId, (training) => ({
       ...training,
-      people: training.people.map((person) => person.id === personId ? { ...person, ...draft } : person)
+      people: training.people.map((person) => person.id === personId ? { ...person, ...normalizePersonDraft(draft) } : person)
     }));
   }
 
@@ -138,7 +138,7 @@ export class PlannerStore {
     try {
       const db = await openDb();
       const stored = await request<PlannerState | undefined>(db.transaction(STORE_NAME).objectStore(STORE_NAME).get(STATE_KEY));
-      if (stored?.version === 1) this.state.set(stored);
+      if (stored?.version === 1) this.state.set(normalizeState(stored));
       db.close();
     } finally {
       this.ready.set(true);
@@ -185,4 +185,19 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 
 function cleanNames(names: string[]): string[] {
   return [...new Set(names.map((name) => name.trim()).filter(Boolean))];
+}
+
+function normalizeState(state: PlannerState): PlannerState {
+  return {
+    ...state,
+    trainings: state.trainings.map((training) => ({
+      ...training,
+      people: training.people.map((person) => ({ ...person, expert: !!person.expert }))
+    }))
+  };
+}
+
+function normalizePersonDraft(draft: PersonDraft): PersonDraft {
+  const expert = draft.role !== 'Teilnehmer' && draft.role !== 'Gast' && !!draft.expert;
+  return { ...draft, expert };
 }

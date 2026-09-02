@@ -32,7 +32,7 @@ import {
 type PlannerTab = 'dashboard' | 'matrix' | 'people' | 'settings' | 'report';
 type SortDirection = 'asc' | 'desc';
 type MatrixSortKey = 'firstName' | 'lastName' | 'role' | 'subTraining';
-type PeopleSortKey = MatrixSortKey | 'gender' | 'origin';
+type PeopleSortKey = MatrixSortKey | 'gender' | 'origin' | 'expert';
 
 interface SortState<T extends string> {
   key: T;
@@ -56,7 +56,7 @@ interface AbsenceDraft {
 }
 
 const EMPTY_PERSON: PersonDraft = {
-  firstName: '', lastName: '', gender: 'Keine Angabe', role: 'Teilnehmer', subTrainingId: null, external: false
+  firstName: '', lastName: '', gender: 'Keine Angabe', role: 'Teilnehmer', subTrainingId: null, external: false, expert: false
 };
 
 @Component({
@@ -101,6 +101,7 @@ export class PlannerComponent {
   readonly sortedFilteredPeople = computed(() => this.sortPeople(this.filteredPeople(), this.matrixSort()));
   readonly sortedPeople = computed(() => this.sortPeople(this.activePeople(), this.peopleSort()));
   readonly participants = computed(() => this.activePeople().filter((person) => person.role === 'Teilnehmer'));
+  readonly experts = computed(() => this.activePeople().filter((person) => person.expert && this.canBeExpert(person.role)));
   readonly totalNights = computed(() => this.dates().reduce((total, date) => total + this.count(date, 'overnight'), 0));
 
   readonly search = signal('');
@@ -217,7 +218,8 @@ export class PlannerComponent {
       gender: person.gender,
       role: person.role,
       subTrainingId: person.subTrainingId,
-      external: person.external
+      external: person.external,
+      expert: !!person.expert && this.canBeExpert(person.role)
     } : { ...EMPTY_PERSON };
     this.personEditorOpen.set(true);
   }
@@ -225,7 +227,12 @@ export class PlannerComponent {
   savePerson(): void {
     const training = this.activeTraining();
     if (!training) return;
-    const draft = { ...this.personDraft, firstName: this.personDraft.firstName.trim(), lastName: this.personDraft.lastName.trim() };
+    const draft = {
+      ...this.personDraft,
+      firstName: this.personDraft.firstName.trim(),
+      lastName: this.personDraft.lastName.trim(),
+      expert: this.canBeExpert(this.personDraft.role) && !!this.personDraft.expert
+    };
     if (!draft.firstName || !draft.lastName) {
       this.error.set('Vorname und Name sind erforderlich.');
       return;
@@ -338,6 +345,10 @@ export class PlannerComponent {
     return state.direction === 'asc' ? '↑' : '↓';
   }
 
+  canBeExpert(role: PlannerRole): boolean {
+    return role !== 'Teilnehmer' && role !== 'Gast';
+  }
+
   dateLabel(value: string): string {
     return localDateLabel(value);
   }
@@ -345,6 +356,14 @@ export class PlannerComponent {
   count(date: string, period: Period, people = this.activePeople()): number {
     const training = this.activeTraining();
     return training ? people.filter((person) => effectivePeriod(training, person, date, period)).length : 0;
+  }
+
+  expertAvailability(date: string): PlannerPerson[] {
+    return this.experts().filter((person) => this.presence(person, date, 'morning') || this.presence(person, date, 'afternoon'));
+  }
+
+  expertNames(date: string): string {
+    return this.expertAvailability(date).map((person) => `${person.firstName} ${person.lastName}`).join(', ');
   }
 
   genderCount(date: string, period: Period, gender: Gender): number {
@@ -402,14 +421,14 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!training) return;
     const rows = this.importRows().filter((row) => row.valid);
-    this.store.addPeople(training.id, rows.map(({ firstName, lastName, gender, role, subTrainingId, external }) => ({ firstName, lastName, gender, role, subTrainingId, external })));
+    this.store.addPeople(training.id, rows.map(({ firstName, lastName, gender, role, subTrainingId, external, expert }) => ({ firstName, lastName, gender, role, subTrainingId, external, expert })));
     this.importOpen.set(false);
     this.importRows.set([]);
     this.notice.set(`${rows.length} Personen wurden importiert.`);
   }
 
   downloadTemplate(): void {
-    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;gender;role;sub_training;external\n', 'text/csv;charset=utf-8');
+    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;gender;role;sub_training;external;expert\n', 'text/csv;charset=utf-8');
   }
 
   exportKitchen(): void {
@@ -490,6 +509,7 @@ export class PlannerComponent {
   private sortValue(person: PlannerPerson, key: MatrixSortKey | PeopleSortKey): string {
     if (key === 'subTraining') return this.subTrainingNameFor(person);
     if (key === 'origin') return person.external ? 'Extern' : 'Intern';
+    if (key === 'expert') return person.expert ? 'Experte' : '';
     return person[key];
   }
 }

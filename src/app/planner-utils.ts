@@ -97,7 +97,8 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     gender: column('gender', 'geschlecht'),
     role: column('role', 'funktion', 'rolle'),
     subTraining: column('sub_training', 'kurs', 'unterkurs'),
-    external: column('external', 'extern')
+    external: column('external', 'extern'),
+    expert: column('expert', 'experte')
   };
   const existing = new Set(training.people.map((person) => normalizedName(person.firstName, person.lastName)));
   const seen = new Set<string>();
@@ -110,6 +111,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     const subTrainingName = value(row, columns.subTraining);
     const subTraining = training.subTrainings.find((item) => item.name.toLocaleLowerCase('de-CH') === subTrainingName.toLocaleLowerCase('de-CH'));
     const externalValue = value(row, columns.external).toLocaleLowerCase('de-CH');
+    const expertValue = value(row, columns.expert).toLocaleLowerCase('de-CH');
     const errors: string[] = [];
     if (!firstName) errors.push('Vorname fehlt.');
     if (!lastName) errors.push('Name fehlt.');
@@ -128,6 +130,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
       role: role ?? 'Sonstige',
       subTrainingId: subTraining?.id ?? null,
       external: ['ja', 'yes', 'true', '1', 'x'].includes(externalValue),
+      expert: role !== 'Teilnehmer' && role !== 'Gast' && ['ja', 'yes', 'true', '1', 'x'].includes(expertValue),
       duplicate,
       valid: errors.length === 0 && !duplicate,
       errors
