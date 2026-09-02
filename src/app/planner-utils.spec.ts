@@ -3,7 +3,7 @@ import { PlannerPerson, Training } from './planner.models';
 import { absenceOverlaps, defaultPresence, effectivePeriod, parsePlannerCsv, visibleTrainingDates } from './planner-utils';
 
 const person: PlannerPerson = {
-  id: 'p1', firstName: 'Arti', lastName: 'Muster', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, archived: false
+  id: 'p1', firstName: 'Arti', lastName: 'Muster', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, nutritionPreferences: [], medicalInformation: '', archived: false
 };
 
 const training: Training = {
@@ -50,14 +50,24 @@ describe('planner calculations', () => {
 describe('planner CSV import', () => {
   it('accepts the standard semicolon template and ignores duplicate names', () => {
     const csv = [
-      'first_name;last_name;gender;role;sub_training;external;expert',
-      'Arti;Muster;m;Teilnehmer;GLK;nein;ja',
-      'Nina;Tal;w;Event Leiter;GLK;ja;ja'
+      'first_name;last_name;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen',
+      'Arti;Muster;m;Teilnehmer;GLK;nein;ja;;',
+      'Nina;Tal;w;Event Leiter;GLK;ja;ja;vegetarisch, glutenfrei;Asthma Spray dabei'
     ].join('\n');
     const rows = parsePlannerCsv(csv, training);
     expect(rows[0]).toMatchObject({ duplicate: true, valid: false });
     expect(rows[0]).toMatchObject({ expert: false });
-    expect(rows[1]).toMatchObject({ firstName: 'Nina', gender: 'Weiblich', role: 'Event Leiter', subTrainingId: 'glk', external: true, expert: true, valid: true });
+    expect(rows[1]).toMatchObject({
+      firstName: 'Nina',
+      gender: 'Weiblich',
+      role: 'Event Leiter',
+      subTrainingId: 'glk',
+      external: true,
+      expert: true,
+      nutritionPreferences: ['Vegetarisch', 'Glutenfrei'],
+      medicalInformation: 'Asthma Spray dabei',
+      valid: true
+    });
   });
 
   it('reports unknown sub-trainings and roles', () => {

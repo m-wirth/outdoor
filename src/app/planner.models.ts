@@ -10,10 +10,27 @@ export const PLANNER_ROLES = [
 
 export const GENDERS = ['Weiblich', 'Männlich', 'Divers', 'Keine Angabe'] as const;
 export const PERIODS = ['morning', 'lunch', 'afternoon', 'dinner', 'overnight'] as const;
+export const NUTRITION_PREFERENCES = [
+  'Vegetarisch',
+  'Vegan',
+  'Laktosefrei',
+  'Glutenfrei',
+  'Nussallergie',
+  'Erdnussallergie',
+  'Fischallergie',
+  'Meeresfrüchteallergie',
+  'Ei-Allergie',
+  'Soja-Allergie',
+  'Sesam-Allergie',
+  'Schweinefleischfrei',
+  'Halal',
+  'Koscher'
+] as const;
 
 export type PlannerRole = typeof PLANNER_ROLES[number];
 export type Gender = typeof GENDERS[number];
 export type Period = typeof PERIODS[number];
+export type NutritionPreference = typeof NUTRITION_PREFERENCES[number];
 export type MealPeriod = 'lunch' | 'dinner';
 export type AbsenceStatus = 'pending' | 'approved' | 'rejected';
 
@@ -32,6 +49,8 @@ export interface PlannerPerson {
   subTrainingId: string | null;
   external: boolean;
   expert: boolean;
+  nutritionPreferences: NutritionPreference[];
+  medicalInformation: string;
   archived: boolean;
 }
 
@@ -81,6 +100,8 @@ export interface PersonDraft {
   subTrainingId: string | null;
   external: boolean;
   expert: boolean;
+  nutritionPreferences: NutritionPreference[];
+  medicalInformation: string;
 }
 
 export interface ImportRow extends PersonDraft {

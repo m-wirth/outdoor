@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Absence, DayPresence, EMPTY_STATE, PersonDraft, PlannerPerson, PlannerState, SubTraining, Training } from './planner.models';
+import { Absence, DayPresence, EMPTY_STATE, NUTRITION_PREFERENCES, NutritionPreference, PersonDraft, PlannerPerson, PlannerState, SubTraining, Training } from './planner.models';
 import { id } from './planner-utils';
 
 const DB_NAME = 'trailbox-planner';
@@ -116,7 +116,7 @@ export class PlannerStore {
 
   async restore(state: PlannerState): Promise<void> {
     if (state?.version !== 1 || !Array.isArray(state.trainings)) throw new Error('Die Sicherungsdatei ist ungültig.');
-    this.state.set(structuredClone(state));
+    this.state.set(normalizeState(structuredClone(state)));
     await this.save();
   }
 
@@ -192,12 +192,27 @@ function normalizeState(state: PlannerState): PlannerState {
     ...state,
     trainings: state.trainings.map((training) => ({
       ...training,
-      people: training.people.map((person) => ({ ...person, expert: !!person.expert }))
+      people: training.people.map((person) => ({
+        ...person,
+        expert: !!person.expert,
+        nutritionPreferences: normalizeNutritionPreferences(person.nutritionPreferences),
+        medicalInformation: String(person.medicalInformation ?? '')
+      }))
     }))
   };
 }
 
 function normalizePersonDraft(draft: PersonDraft): PersonDraft {
   const expert = draft.role !== 'Teilnehmer' && draft.role !== 'Gast' && !!draft.expert;
-  return { ...draft, expert };
+  return {
+    ...draft,
+    expert,
+    nutritionPreferences: normalizeNutritionPreferences(draft.nutritionPreferences),
+    medicalInformation: draft.medicalInformation.trim()
+  };
+}
+
+function normalizeNutritionPreferences(value: unknown): NutritionPreference[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is NutritionPreference => NUTRITION_PREFERENCES.includes(item as NutritionPreference)))];
 }

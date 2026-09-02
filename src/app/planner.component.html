@@ -113,6 +113,17 @@
               </table>
             </div>
           </section>
+
+          <section class="panel nutrition-panel">
+            <div class="panel-head"><div><p class="eyebrow">Küche</p><h4>Essgewohnheiten</h4></div></div>
+            @if (nutritionSummary().length) {
+              <div class="breakdown-list">
+                @for (row of nutritionSummary(); track row.label) {
+                  <div><span><b>{{ row.label }}</b><small>erfasste Personen</small></span><strong>{{ row.count }}</strong></div>
+                }
+              </div>
+            } @else { <p class="muted-empty">Noch keine Essgewohnheiten erfasst.</p> }
+          </section>
         </div>
 
         @if (training.absences.length) {
@@ -193,10 +204,10 @@
       <section class="people-view">
         <div class="section-title compact"><div><p class="eyebrow">Stammdaten</p><h3>Personen</h3></div><div class="section-actions"><button class="secondary-action" type="button" (click)="importOpen.set(true)">CSV importieren</button><button class="primary-action" type="button" (click)="openPerson()">+ Person</button></div></div>
         <div class="people-table-wrap">
-          <table class="people-table"><thead><tr><th><button class="sort-head plain" type="button" (click)="setPeopleSort('lastName')">Name <span>{{ sortLabel(peopleSort(), 'lastName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('firstName')">Vorname <span>{{ sortLabel(peopleSort(), 'firstName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('gender')">Geschlecht <span>{{ sortLabel(peopleSort(), 'gender') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('role')">Rolle <span>{{ sortLabel(peopleSort(), 'role') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('subTraining')">Unterkurs <span>{{ sortLabel(peopleSort(), 'subTraining') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('origin')">Herkunft <span>{{ sortLabel(peopleSort(), 'origin') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('expert')">Experte <span>{{ sortLabel(peopleSort(), 'expert') }}</span></button></th><th></th></tr></thead><tbody>
+          <table class="people-table"><thead><tr><th><button class="sort-head plain" type="button" (click)="setPeopleSort('lastName')">Name <span>{{ sortLabel(peopleSort(), 'lastName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('firstName')">Vorname <span>{{ sortLabel(peopleSort(), 'firstName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('gender')">Geschlecht <span>{{ sortLabel(peopleSort(), 'gender') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('role')">Rolle <span>{{ sortLabel(peopleSort(), 'role') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('subTraining')">Unterkurs <span>{{ sortLabel(peopleSort(), 'subTraining') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('origin')">Herkunft <span>{{ sortLabel(peopleSort(), 'origin') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('expert')">Experte <span>{{ sortLabel(peopleSort(), 'expert') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('nutrition')">Essgewohnheiten <span>{{ sortLabel(peopleSort(), 'nutrition') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('medical')">Medizinische Informationen <span>{{ sortLabel(peopleSort(), 'medical') }}</span></button></th><th></th></tr></thead><tbody>
             @for (person of sortedPeople(); track person.id) {
-              <tr><th>{{ person.lastName }}</th><td>{{ person.firstName }}</td><td>{{ person.gender }}</td><td>{{ person.role }}</td><td>{{ subTrainingNameFor(person) }}</td><td>{{ person.external ? 'Extern' : 'Intern' }}</td><td>{{ person.expert ? 'Ja' : 'Nein' }}</td><td><button class="text-action" type="button" (click)="openPerson(person)">Bearbeiten</button><button class="icon-action danger" type="button" (click)="archivePerson(person)" aria-label="Archivieren">×</button></td></tr>
-            } @empty { <tr><td colspan="8" class="no-results">Noch keine Personen. Erfasse sie manuell oder importiere eine CSV-Datei.</td></tr> }
+              <tr><th>{{ person.lastName }}</th><td>{{ person.firstName }}</td><td>{{ person.gender }}</td><td>{{ person.role }}</td><td>{{ subTrainingNameFor(person) }}</td><td>{{ person.external ? 'Extern' : 'Intern' }}</td><td>{{ person.expert ? 'Ja' : 'Nein' }}</td><td>{{ nutritionLabel(person) }}</td><td>{{ person.medicalInformation || '–' }}</td><td><button class="text-action" type="button" (click)="openPerson(person)">Bearbeiten</button><button class="icon-action danger" type="button" (click)="archivePerson(person)" aria-label="Archivieren">×</button></td></tr>
+            } @empty { <tr><td colspan="10" class="no-results">Noch keine Personen. Erfasse sie manuell oder importiere eine CSV-Datei.</td></tr> }
           </tbody></table>
         </div>
       </section>
@@ -278,6 +289,15 @@
       <label><span>Unterkurs</span><select name="sub-training" [(ngModel)]="personDraft.subTrainingId"><option [ngValue]="null">Kein Unterkurs</option>@for (course of activeTraining()?.subTrainings ?? []; track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label>
       <label class="check-label"><input name="external" type="checkbox" [(ngModel)]="personDraft.external"><span>Person ist extern</span></label>
       @if (canBeExpert(personDraft.role)) { <label class="check-label"><input name="expert" type="checkbox" [(ngModel)]="personDraft.expert"><span>Experte</span></label> }
+      <fieldset class="preference-fieldset">
+        <legend>Essgewohnheiten</legend>
+        <div class="preference-grid">
+          @for (preference of nutritionPreferences; track preference) {
+            <label class="check-label"><input type="checkbox" [checked]="hasNutritionPreference(preference)" (change)="setNutritionPreference(preference, $any($event.target).checked)"><span>{{ preference }}</span></label>
+          }
+        </div>
+      </fieldset>
+      <label><span>Medizinische Informationen</span><textarea name="medical-information" [(ngModel)]="personDraft.medicalInformation" rows="3" placeholder="Relevante Hinweise für Betreuung / Sicherheit"></textarea></label>
       <div class="modal-actions"><button class="secondary-action" type="button" (click)="personEditorOpen.set(false)">Abbrechen</button><button class="primary-action" type="submit">Speichern</button></div>
     </form>
   </section></div>
@@ -307,6 +327,6 @@
         @for (row of importRows(); track row.line) { <tr [class.invalid]="!row.valid"><td>{{ row.line }}</td><th>{{ row.firstName }} {{ row.lastName }}</th><td>{{ row.role }}</td><td>{{ row.subTrainingId ? 'Zugewiesen' : '–' }}</td><td>{{ row.duplicate ? 'Duplikat' : row.errors.join(' ') || 'Bereit' }}</td></tr> }
       </tbody></table></div>
       <div class="modal-actions"><button class="secondary-action" type="button" (click)="importOpen.set(false)">Abbrechen</button><button class="primary-action" type="button" [disabled]="!validImportCount()" (click)="confirmImport()">{{ validImportCount() }} importieren</button></div>
-    } @else { <div class="import-help"><strong>Standardspalten</strong><code>first_name;last_name;gender;role;sub_training;external;expert</code><p>Duplikate werden übersprungen. Alle Daten bleiben auf diesem Gerät.</p></div> }
+    } @else { <div class="import-help"><strong>Standardspalten</strong><code>first_name;last_name;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen</code><p>Mehrere Essgewohnheiten pro Person mit Komma trennen. Duplikate werden übersprungen. Alle Daten bleiben auf diesem Gerät.</p></div> }
   </section></div>
 }

@@ -4,6 +4,8 @@ import {
   GENDERS,
   ImportRow,
   MealPeriod,
+  NUTRITION_PREFERENCES,
+  NutritionPreference,
   Period,
   PlannerPerson,
   PLANNER_ROLES,
@@ -98,7 +100,9 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     role: column('role', 'funktion', 'rolle'),
     subTraining: column('sub_training', 'kurs', 'unterkurs'),
     external: column('external', 'extern'),
-    expert: column('expert', 'experte')
+    expert: column('expert', 'experte'),
+    nutritionPreferences: column('nutrition_preferences', 'essgewohnheiten', 'ernaehrung', 'ernahrung', 'allergien', 'allergies'),
+    medicalInformation: column('medical_information', 'medizinische_informationen', 'medizinisch', 'gesundheit', 'health_info')
   };
   const existing = new Set(training.people.map((person) => normalizedName(person.firstName, person.lastName)));
   const seen = new Set<string>();
@@ -112,6 +116,8 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     const subTraining = training.subTrainings.find((item) => item.name.toLocaleLowerCase('de-CH') === subTrainingName.toLocaleLowerCase('de-CH'));
     const externalValue = value(row, columns.external).toLocaleLowerCase('de-CH');
     const expertValue = value(row, columns.expert).toLocaleLowerCase('de-CH');
+    const nutritionPreferences = parseNutritionPreferences(value(row, columns.nutritionPreferences));
+    const medicalInformation = value(row, columns.medicalInformation);
     const errors: string[] = [];
     if (!firstName) errors.push('Vorname fehlt.');
     if (!lastName) errors.push('Name fehlt.');
@@ -131,11 +137,73 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
       subTrainingId: subTraining?.id ?? null,
       external: ['ja', 'yes', 'true', '1', 'x'].includes(externalValue),
       expert: role !== 'Teilnehmer' && role !== 'Gast' && ['ja', 'yes', 'true', '1', 'x'].includes(expertValue),
+      nutritionPreferences,
+      medicalInformation,
       duplicate,
       valid: errors.length === 0 && !duplicate,
       errors
     };
   });
+}
+
+function parseNutritionPreferences(value: string): NutritionPreference[] {
+  const aliases: Record<string, NutritionPreference> = {
+    'vegetarisch': 'Vegetarisch',
+    'vegetarian': 'Vegetarisch',
+    'vegi': 'Vegetarisch',
+    'veggie': 'Vegetarisch',
+    'vegan': 'Vegan',
+    'laktosefrei': 'Laktosefrei',
+    'lactose free': 'Laktosefrei',
+    'lactose-free': 'Laktosefrei',
+    'laktose': 'Laktosefrei',
+    'glutenfrei': 'Glutenfrei',
+    'gluten free': 'Glutenfrei',
+    'gluten-free': 'Glutenfrei',
+    'zoeliakie': 'Glutenfrei',
+    'zoliakie': 'Glutenfrei',
+    'zöliakie': 'Glutenfrei',
+    'nussallergie': 'Nussallergie',
+    'nüsse': 'Nussallergie',
+    'nusse': 'Nussallergie',
+    'nuts': 'Nussallergie',
+    'erdnussallergie': 'Erdnussallergie',
+    'erdnüsse': 'Erdnussallergie',
+    'erdnusse': 'Erdnussallergie',
+    'peanuts': 'Erdnussallergie',
+    'fischallergie': 'Fischallergie',
+    'fisch': 'Fischallergie',
+    'fish': 'Fischallergie',
+    'meeresfruchteallergie': 'Meeresfrüchteallergie',
+    'meeresfrüchteallergie': 'Meeresfrüchteallergie',
+    'meeresfrüchte': 'Meeresfrüchteallergie',
+    'meeresfruchte': 'Meeresfrüchteallergie',
+    'seafood': 'Meeresfrüchteallergie',
+    'ei-allergie': 'Ei-Allergie',
+    'eiallergie': 'Ei-Allergie',
+    'ei': 'Ei-Allergie',
+    'egg': 'Ei-Allergie',
+    'soja-allergie': 'Soja-Allergie',
+    'soja': 'Soja-Allergie',
+    'soy': 'Soja-Allergie',
+    'sesam-allergie': 'Sesam-Allergie',
+    'sesam': 'Sesam-Allergie',
+    'sesame': 'Sesam-Allergie',
+    'schweinefleischfrei': 'Schweinefleischfrei',
+    'kein schwein': 'Schweinefleischfrei',
+    'pork free': 'Schweinefleischfrei',
+    'halal': 'Halal',
+    'koscher': 'Koscher',
+    'kosher': 'Koscher'
+  };
+  return [...new Set(value.split(/[,;|/\n]+/)
+    .map((item) => normalizeNutritionKey(item))
+    .map((key) => aliases[key] ?? NUTRITION_PREFERENCES.find((preference) => normalizeNutritionKey(preference) === key))
+    .filter((item): item is NutritionPreference => !!item))];
+}
+
+function normalizeNutritionKey(value: string): string {
+  return value.trim().toLocaleLowerCase('de-CH').normalize('NFKD').replace(/\p{Diacritic}/gu, '');
 }
 
 export function csvEscape(value: unknown): string {

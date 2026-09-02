@@ -6,6 +6,8 @@ import {
   GENDERS,
   ImportRow,
   MealPeriod,
+  NUTRITION_PREFERENCES,
+  NutritionPreference,
   PERIODS,
   Period,
   PersonDraft,
@@ -32,7 +34,7 @@ import {
 type PlannerTab = 'dashboard' | 'matrix' | 'people' | 'settings' | 'report';
 type SortDirection = 'asc' | 'desc';
 type MatrixSortKey = 'firstName' | 'lastName' | 'role' | 'subTraining';
-type PeopleSortKey = MatrixSortKey | 'gender' | 'origin' | 'expert';
+type PeopleSortKey = MatrixSortKey | 'gender' | 'origin' | 'expert' | 'nutrition' | 'medical';
 
 interface SortState<T extends string> {
   key: T;
@@ -56,7 +58,15 @@ interface AbsenceDraft {
 }
 
 const EMPTY_PERSON: PersonDraft = {
-  firstName: '', lastName: '', gender: 'Keine Angabe', role: 'Teilnehmer', subTrainingId: null, external: false, expert: false
+  firstName: '',
+  lastName: '',
+  gender: 'Keine Angabe',
+  role: 'Teilnehmer',
+  subTrainingId: null,
+  external: false,
+  expert: false,
+  nutritionPreferences: [],
+  medicalInformation: ''
 };
 
 @Component({
@@ -69,6 +79,7 @@ const EMPTY_PERSON: PersonDraft = {
 export class PlannerComponent {
   readonly roles = PLANNER_ROLES;
   readonly genders = GENDERS;
+  readonly nutritionPreferences = NUTRITION_PREFERENCES;
   readonly periods = PERIODS;
   readonly periodLabels: Record<Period, { short: string; long: string }> = {
     morning: { short: 'VM', long: 'Vormittag' },
@@ -103,6 +114,9 @@ export class PlannerComponent {
   readonly participants = computed(() => this.activePeople().filter((person) => person.role === 'Teilnehmer'));
   readonly experts = computed(() => this.activePeople().filter((person) => person.expert && this.canBeExpert(person.role)));
   readonly totalNights = computed(() => this.dates().reduce((total, date) => total + this.count(date, 'overnight'), 0));
+  readonly nutritionSummary = computed(() => this.nutritionPreferences
+    .map((preference) => ({ label: preference, count: this.activePeople().filter((person) => person.nutritionPreferences.includes(preference)).length }))
+    .filter((row) => row.count > 0));
 
   readonly search = signal('');
   readonly roleFilter = signal<PlannerRole | ''>('');
@@ -219,8 +233,10 @@ export class PlannerComponent {
       role: person.role,
       subTrainingId: person.subTrainingId,
       external: person.external,
-      expert: !!person.expert && this.canBeExpert(person.role)
-    } : { ...EMPTY_PERSON };
+      expert: !!person.expert && this.canBeExpert(person.role),
+      nutritionPreferences: [...person.nutritionPreferences],
+      medicalInformation: person.medicalInformation
+    } : { ...EMPTY_PERSON, nutritionPreferences: [] };
     this.personEditorOpen.set(true);
   }
 
@@ -231,7 +247,9 @@ export class PlannerComponent {
       ...this.personDraft,
       firstName: this.personDraft.firstName.trim(),
       lastName: this.personDraft.lastName.trim(),
-      expert: this.canBeExpert(this.personDraft.role) && !!this.personDraft.expert
+      expert: this.canBeExpert(this.personDraft.role) && !!this.personDraft.expert,
+      nutritionPreferences: [...new Set(this.personDraft.nutritionPreferences)],
+      medicalInformation: this.personDraft.medicalInformation.trim()
     };
     if (!draft.firstName || !draft.lastName) {
       this.error.set('Vorname und Name sind erforderlich.');
@@ -349,6 +367,21 @@ export class PlannerComponent {
     return role !== 'Teilnehmer' && role !== 'Gast';
   }
 
+  hasNutritionPreference(preference: NutritionPreference): boolean {
+    return this.personDraft.nutritionPreferences.includes(preference);
+  }
+
+  setNutritionPreference(preference: NutritionPreference, checked: boolean): void {
+    const values = new Set(this.personDraft.nutritionPreferences);
+    if (checked) values.add(preference);
+    else values.delete(preference);
+    this.personDraft = { ...this.personDraft, nutritionPreferences: [...values] };
+  }
+
+  nutritionLabel(person: PlannerPerson): string {
+    return person.nutritionPreferences.length ? person.nutritionPreferences.join(', ') : '–';
+  }
+
   dateLabel(value: string): string {
     return localDateLabel(value);
   }
@@ -421,14 +454,24 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!training) return;
     const rows = this.importRows().filter((row) => row.valid);
-    this.store.addPeople(training.id, rows.map(({ firstName, lastName, gender, role, subTrainingId, external, expert }) => ({ firstName, lastName, gender, role, subTrainingId, external, expert })));
+    this.store.addPeople(training.id, rows.map(({ firstName, lastName, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation }) => ({
+      firstName,
+      lastName,
+      gender,
+      role,
+      subTrainingId,
+      external,
+      expert,
+      nutritionPreferences,
+      medicalInformation
+    })));
     this.importOpen.set(false);
     this.importRows.set([]);
     this.notice.set(`${rows.length} Personen wurden importiert.`);
   }
 
   downloadTemplate(): void {
-    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;gender;role;sub_training;external;expert\n', 'text/csv;charset=utf-8');
+    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen\n', 'text/csv;charset=utf-8');
   }
 
   exportKitchen(): void {
@@ -444,6 +487,10 @@ export class PlannerComponent {
       }
       rows.push([date, 'TOTAL', 'Alle', String(this.count(date, 'lunch')), String(this.count(date, 'dinner')), String(this.count(date, 'overnight'))]);
     }
+    rows.push([]);
+    rows.push(['Essgewohnheiten', 'Personen']);
+    for (const row of this.nutritionSummary()) rows.push([row.label, String(row.count)]);
+    if (!this.nutritionSummary().length) rows.push(['Keine erfasst', '0']);
     downloadText(`${safeFilename(training.name)}-kueche.csv`, `\uFEFF${rows.map((row) => row.map(csvEscape).join(';')).join('\n')}`, 'text/csv;charset=utf-8');
   }
 
@@ -510,6 +557,8 @@ export class PlannerComponent {
     if (key === 'subTraining') return this.subTrainingNameFor(person);
     if (key === 'origin') return person.external ? 'Extern' : 'Intern';
     if (key === 'expert') return person.expert ? 'Experte' : '';
+    if (key === 'nutrition') return this.nutritionLabel(person);
+    if (key === 'medical') return person.medicalInformation;
     return person[key];
   }
 }
