@@ -2,8 +2,8 @@
   <header class="planner-head">
     <div>
       <p class="eyebrow">Personalplaner</p>
-      <h2>Alle Personen. Jeder Zeitraum. Eine Übersicht.</h2>
-      <p>Anwesenheiten, Mahlzeiten, Absenzen und Übernachtungen bleiben lokal auf diesem Gerät.</p>
+      <h2>Personalplanung</h2>
+      <p>Anwesenheiten, Mahlzeiten, Absenzen und Übernachtungen.</p>
     </div>
     <div class="head-actions">
       <label class="file-button secondary-action">Sicherung laden<input type="file" accept=".json,application/json" (change)="restore($event)"></label>
@@ -18,7 +18,6 @@
     <div class="loading"><span></span> Lokale Planung wird geladen …</div>
   } @else if (!activeTraining() || creatingTraining()) {
     <section class="empty-state">
-      <div class="empty-art" aria-hidden="true">⌁</div>
       <div>
         <p class="eyebrow">{{ activeTraining() ? 'Neues Training' : 'Erster Schritt' }}</p>
         <h3>{{ activeTraining() ? 'Weiteres Training anlegen' : 'Lege dein erstes Training an' }}</h3>
@@ -179,6 +178,9 @@
             <tfoot>
               <tr><th class="sticky person-col">Total</th><td class="sticky role-col"></td><td class="sticky course-col"></td>
                 @if (visiblePeriods().length) { @for (date of dates(); track date) { @for (period of visiblePeriods(); track period) { <td [class.day-end]="period === 'overnight'">{{ count(date, period, sortedFilteredPeople()) }}</td> } } }
+              </tr>
+              <tr class="expert-total"><th class="sticky person-col">Experten</th><td class="sticky role-col"></td><td class="sticky course-col"></td>
+                @if (visiblePeriods().length) { @for (date of dates(); track date) { <td class="expert-count" [attr.colspan]="visiblePeriods().length" [title]="expertNames(date) || 'Keine Experten verfügbar'">{{ expertAvailability(date).length }}</td> } }
               </tr>
             </tfoot>
           </table>
