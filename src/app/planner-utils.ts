@@ -87,10 +87,8 @@ export function normalizedName(firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`.trim().toLocaleLowerCase('de-CH').normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ');
 }
 
-export function importDuplicateKey(firstName: string, lastName: string, birthDate: string): string {
-  const name = normalizedName(firstName, lastName);
-  const birth = normalizeBirthDate(birthDate);
-  return birth ? `${name}|${birth}` : name;
+export function importDuplicateKey(firstName: string, lastName: string, _birthDate = ''): string {
+  return normalizedName(firstName, lastName);
 }
 
 export function parsePlannerCsv(text: string, training: Training): ImportRow[] {

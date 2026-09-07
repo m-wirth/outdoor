@@ -51,7 +51,7 @@ describe('planner CSV import', () => {
   it('accepts the standard semicolon template and ignores duplicate names', () => {
     const csv = [
       'first_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen',
-      'Arti;Muster;2000-12-01;m;Teilnehmer;GLK;nein;ja;;',
+      'Arti;Muster;2005-01-02;m;Teilnehmer;GLK;nein;ja;;',
       'Nina;Tal;1999-03-04;w;Event Leiter;GLK;ja;ja;vegetarisch, glutenfrei;Asthma Spray dabei'
     ].join('\n');
     const rows = parsePlannerCsv(csv, training);
@@ -79,10 +79,10 @@ describe('planner CSV import', () => {
     expect(row.errors.join(' ')).toContain('XYZ');
   });
 
-  it('imports GTQ CSV rows with birthdate duplicate keys and GTQ mappings', () => {
+  it('imports GTQ CSV rows with name duplicate keys and GTQ mappings', () => {
     const csv = [
       ['Person Vorname', 'Person Name', 'Person Geb', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'Person Datenbank::Person Gesundheit Lebensmittel', 'Person Datenbank::Person Gesundheit Medikamente'],
-      ['Arti', 'Muster', '2000-12-01', 'm', 'Teilnehmer', 'Wettingen - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', ''],
+      ['Arti', 'Muster', '2005-01-02', 'm', 'Teilnehmer', 'Wettingen - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', ''],
       ['Mara', 'Frei', '2001-05-06', 'w', 'Scout', '', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens']
     ].map((row) => row.join(';')).join('\n');
     const rows = parsePlannerCsv(csv, training);

@@ -261,7 +261,7 @@ export class PlannerComponent {
     const key = importDuplicateKey(draft.firstName, draft.lastName, draft.birthDate);
     const duplicate = training.people.some((person) => !person.archived && person.id !== this.editingPersonId() && importDuplicateKey(person.firstName, person.lastName, person.birthDate) === key);
     if (duplicate) {
-      this.error.set('Eine Person mit diesem Vor- und Nachnamen und Geburtsdatum existiert bereits.');
+      this.error.set('Eine Person mit diesem Vor- und Nachnamen existiert bereits.');
       return;
     }
     if (this.editingPersonId()) this.store.updatePerson(training.id, this.editingPersonId(), draft);
