@@ -25,7 +25,8 @@ import {
   downloadText,
   effectivePeriod,
   localDateLabel,
-  normalizedName,
+  importDuplicateKey,
+  parseGtqWorkbook,
   parsePlannerCsv,
   plannedPresence,
   visibleTrainingDates
@@ -34,7 +35,7 @@ import {
 type PlannerTab = 'dashboard' | 'matrix' | 'people' | 'settings' | 'report';
 type SortDirection = 'asc' | 'desc';
 type MatrixSortKey = 'firstName' | 'lastName' | 'role' | 'subTraining';
-type PeopleSortKey = MatrixSortKey | 'gender' | 'origin' | 'expert' | 'nutrition' | 'medical';
+type PeopleSortKey = MatrixSortKey | 'birthDate' | 'gender' | 'origin' | 'expert' | 'nutrition' | 'medical';
 
 interface SortState<T extends string> {
   key: T;
@@ -60,6 +61,7 @@ interface AbsenceDraft {
 const EMPTY_PERSON: PersonDraft = {
   firstName: '',
   lastName: '',
+  birthDate: '',
   gender: 'Keine Angabe',
   role: 'Teilnehmer',
   subTrainingId: null,
@@ -229,6 +231,7 @@ export class PlannerComponent {
     this.personDraft = person ? {
       firstName: person.firstName,
       lastName: person.lastName,
+      birthDate: person.birthDate,
       gender: person.gender,
       role: person.role,
       subTrainingId: person.subTrainingId,
@@ -247,6 +250,7 @@ export class PlannerComponent {
       ...this.personDraft,
       firstName: this.personDraft.firstName.trim(),
       lastName: this.personDraft.lastName.trim(),
+      birthDate: this.personDraft.birthDate.trim(),
       expert: this.canBeExpert(this.personDraft.role) && !!this.personDraft.expert,
       nutritionPreferences: [...new Set(this.personDraft.nutritionPreferences)],
       medicalInformation: this.personDraft.medicalInformation.trim()
@@ -255,10 +259,10 @@ export class PlannerComponent {
       this.error.set('Vorname und Name sind erforderlich.');
       return;
     }
-    const key = normalizedName(draft.firstName, draft.lastName);
-    const duplicate = training.people.some((person) => !person.archived && person.id !== this.editingPersonId() && normalizedName(person.firstName, person.lastName) === key);
+    const key = importDuplicateKey(draft.firstName, draft.lastName, draft.birthDate);
+    const duplicate = training.people.some((person) => !person.archived && person.id !== this.editingPersonId() && importDuplicateKey(person.firstName, person.lastName, person.birthDate) === key);
     if (duplicate) {
-      this.error.set('Eine Person mit diesem Vor- und Nachnamen existiert bereits.');
+      this.error.set('Eine Person mit diesem Vor- und Nachnamen und Geburtsdatum existiert bereits.');
       return;
     }
     if (this.editingPersonId()) this.store.updatePerson(training.id, this.editingPersonId(), draft);
@@ -446,7 +450,8 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!file || !training) return;
     this.importFileName.set(file.name);
-    this.importRows.set(parsePlannerCsv(await file.text(), training));
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+    this.importRows.set(isExcel ? parseGtqWorkbook(await file.arrayBuffer(), training) : parsePlannerCsv(await file.text(), training));
     (event.target as HTMLInputElement).value = '';
   }
 
@@ -454,9 +459,10 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!training) return;
     const rows = this.importRows().filter((row) => row.valid);
-    this.store.addPeople(training.id, rows.map(({ firstName, lastName, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation }) => ({
+    this.store.addPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation }) => ({
       firstName,
       lastName,
+      birthDate,
       gender,
       role,
       subTrainingId,
@@ -471,7 +477,7 @@ export class PlannerComponent {
   }
 
   downloadTemplate(): void {
-    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen\n', 'text/csv;charset=utf-8');
+    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen\n', 'text/csv;charset=utf-8');
   }
 
   exportKitchen(): void {

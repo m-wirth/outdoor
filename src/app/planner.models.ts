@@ -5,6 +5,7 @@ export const PLANNER_ROLES = [
   'Teilnehmer',
   'Gast',
   'Expertenpraktikant',
+  'Scout',
   'Sonstige'
 ] as const;
 
@@ -44,6 +45,7 @@ export interface PlannerPerson {
   id: string;
   firstName: string;
   lastName: string;
+  birthDate: string;
   gender: Gender;
   role: PlannerRole;
   subTrainingId: string | null;
@@ -95,6 +97,7 @@ export interface PlannerState {
 export interface PersonDraft {
   firstName: string;
   lastName: string;
+  birthDate: string;
   gender: Gender;
   role: PlannerRole;
   subTrainingId: string | null;

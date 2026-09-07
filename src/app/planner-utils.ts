@@ -12,6 +12,7 @@ import {
   PlannerRole,
   Training
 } from './planner.models';
+import * as XLSX from 'xlsx';
 
 const DAY_MS = 86_400_000;
 const EARLY_ROLES = new Set<PlannerRole>(['Event Hauptleiter', 'Event Leiter', 'Küche', 'Expertenpraktikant']);
@@ -87,6 +88,12 @@ export function normalizedName(firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`.trim().toLocaleLowerCase('de-CH').normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ');
 }
 
+export function importDuplicateKey(firstName: string, lastName: string, birthDate: string): string {
+  const name = normalizedName(firstName, lastName);
+  const birth = normalizeBirthDate(birthDate);
+  return birth ? `${name}|${birth}` : name;
+}
+
 export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
   const delimiter = firstLine(text).includes(';') ? ';' : ',';
   const rows = parseCsv(text.replace(/^\uFEFF/, ''), delimiter).filter((row) => row.some((cell) => cell.trim()));
@@ -96,6 +103,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
   const columns = {
     firstName: column('first_name', 'vorname'),
     lastName: column('last_name', 'name', 'nachname'),
+    birthDate: column('birth_date', 'geburtsdatum', 'geburtstag', 'person_geb'),
     gender: column('gender', 'geschlecht'),
     role: column('role', 'funktion', 'rolle'),
     subTraining: column('sub_training', 'kurs', 'unterkurs'),
@@ -104,12 +112,13 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     nutritionPreferences: column('nutrition_preferences', 'essgewohnheiten', 'ernaehrung', 'ernahrung', 'allergien', 'allergies'),
     medicalInformation: column('medical_information', 'medizinische_informationen', 'medizinisch', 'gesundheit', 'health_info')
   };
-  const existing = new Set(training.people.map((person) => normalizedName(person.firstName, person.lastName)));
+  const existing = new Set(training.people.map((person) => importDuplicateKey(person.firstName, person.lastName, person.birthDate)));
   const seen = new Set<string>();
 
   return rows.slice(1).map((row, index) => {
     const firstName = value(row, columns.firstName);
     const lastName = value(row, columns.lastName);
+    const birthDate = normalizeBirthDate(value(row, columns.birthDate));
     const gender = parseGender(value(row, columns.gender));
     const role = parseRole(value(row, columns.role));
     const subTrainingName = value(row, columns.subTraining);
@@ -125,13 +134,14 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     if (!role) errors.push('Rolle ist ungültig.');
     if (subTrainingName && !subTraining) errors.push(`Unterkurs «${subTrainingName}» existiert nicht.`);
     if (columns.firstName < 0 || columns.lastName < 0 || columns.gender < 0 || columns.role < 0) errors.push('Pflichtspalten fehlen in der Kopfzeile.');
-    const nameKey = normalizedName(firstName, lastName);
+    const nameKey = importDuplicateKey(firstName, lastName, birthDate);
     const duplicate = !!nameKey && (existing.has(nameKey) || seen.has(nameKey));
     if (!duplicate) seen.add(nameKey);
     return {
       line: index + 2,
       firstName,
       lastName,
+      birthDate,
       gender: gender ?? 'Keine Angabe',
       role: role ?? 'Sonstige',
       subTrainingId: subTraining?.id ?? null,
@@ -139,6 +149,72 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
       expert: role !== 'Teilnehmer' && role !== 'Gast' && ['ja', 'yes', 'true', '1', 'x'].includes(expertValue),
       nutritionPreferences,
       medicalInformation,
+      duplicate,
+      valid: errors.length === 0 && !duplicate,
+      errors
+    };
+  });
+}
+
+export function parseGtqWorkbook(buffer: ArrayBuffer, training: Training): ImportRow[] {
+  const workbook = XLSX.read(buffer, { cellDates: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) return [];
+  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: '', raw: false, dateNF: 'yyyy-mm-dd' })
+    .filter((row) => row.some((cell) => String(cell).trim()));
+  if (rows.length < 2) return [];
+  const headers = rows[0].map((item) => normalizeHeader(String(item)));
+  const column = (...names: string[]): number => headers.findIndex((header) => names.includes(header));
+  const columns = {
+    firstName: column('person_vorname'),
+    lastName: column('person_name'),
+    birthDate: column('person_geb'),
+    gender: column('person_geschlecht'),
+    role: column('person_kurs_funktion'),
+    stapoName: column('person_rr_stapo_name'),
+    congregationName: column('person_gemeinde_name'),
+    subTraining: column('kurs_kuerzel'),
+    nutrition: column('person_datenbank::person_gesundheit_lebensmittel'),
+    medical: column('person_datenbank::person_gesundheit_medikamente')
+  };
+  const existing = new Set(training.people.map((person) => importDuplicateKey(person.firstName, person.lastName, person.birthDate)));
+  const seen = new Set<string>();
+
+  return rows.slice(1).map((row, index) => {
+    const firstName = value(row, columns.firstName);
+    const lastName = value(row, columns.lastName);
+    const birthDate = normalizeBirthDate(value(row, columns.birthDate));
+    const gender = parseGender(value(row, columns.gender));
+    const role = parseGtqRole(value(row, columns.role));
+    const subTrainingName = parseSubTrainingFromCourse(value(row, columns.subTraining));
+    const subTraining = subTrainingName
+      ? training.subTrainings.find((item) => item.name.toLocaleLowerCase('de-CH') === subTrainingName.toLocaleLowerCase('de-CH'))
+      : null;
+    const stapoName = value(row, columns.stapoName);
+    const congregationName = value(row, columns.congregationName);
+    const errors: string[] = [];
+    if (!firstName) errors.push('Vorname fehlt.');
+    if (!lastName) errors.push('Name fehlt.');
+    if (!birthDate) errors.push('Geburtsdatum fehlt oder ist ungültig.');
+    if (!gender) errors.push('Geschlecht ist ungültig.');
+    if (!role) errors.push('Rolle ist ungültig.');
+    if (subTrainingName && !subTraining) errors.push(`Unterkurs «${subTrainingName}» existiert nicht.`);
+    if (columns.firstName < 0 || columns.lastName < 0 || columns.birthDate < 0 || columns.gender < 0 || columns.role < 0) errors.push('Pflichtspalten fehlen in der Kopfzeile.');
+    const key = importDuplicateKey(firstName, lastName, birthDate);
+    const duplicate = !!key && (existing.has(key) || seen.has(key));
+    if (!duplicate) seen.add(key);
+    return {
+      line: index + 2,
+      firstName,
+      lastName,
+      birthDate,
+      gender: gender ?? 'Keine Angabe',
+      role: role ?? 'Sonstige',
+      subTrainingId: subTraining?.id ?? null,
+      external: !stapoName || !congregationName,
+      expert: false,
+      nutritionPreferences: parseNutritionPreferences(value(row, columns.nutrition)),
+      medicalInformation: value(row, columns.medical),
       duplicate,
       valid: errors.length === 0 && !duplicate,
       errors
@@ -250,9 +326,29 @@ function parseRole(value: string): PlannerRole | null {
     'besuch': 'Gast',
     'expertenpraktikant': 'Expertenpraktikant',
     'exp p': 'Expertenpraktikant',
+    'scout': 'Scout',
     'sonstige': 'Sonstige'
   };
   return aliases[normalized] ?? PLANNER_ROLES.find((role) => role.toLocaleLowerCase('de-CH') === normalized) ?? null;
+}
+
+function parseGtqRole(value: string): PlannerRole | null {
+  const normalized = value.trim().toLocaleLowerCase('de-CH');
+  const aliases: Record<string, PlannerRole> = {
+    'event leiter': 'Event Leiter',
+    'event hauptleiter': 'Event Hauptleiter',
+    'teilnehmer': 'Teilnehmer',
+    'küche': 'Küche',
+    'kuche': 'Küche',
+    'scout': 'Scout'
+  };
+  return aliases[normalized] ?? parseRole(value);
+}
+
+function parseSubTrainingFromCourse(value: string): string {
+  const normalized = value.trim();
+  const match = /^([A-Za-zÄÖÜäöüÉÈÀÇÑ]+)\s+\d{4}(?:-\d+)?/u.exec(normalized);
+  return (match?.[1] ?? normalized).trim();
 }
 
 function parseGender(value: string): Gender | null {
@@ -284,6 +380,29 @@ function parseCsv(text: string, delimiter: string): string[][] {
   }
   if (field || row.length) { row.push(field.replace(/\r$/, '')); rows.push(row); }
   return rows;
+}
+
+function normalizeBirthDate(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (iso) return isValidDateParts(Number(iso[1]), Number(iso[2]), Number(iso[3])) ? trimmed : '';
+  const swiss = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(trimmed);
+  if (swiss) {
+    const [, day, month, year] = swiss.map(Number);
+    return isValidDateParts(year, month, day) ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isFinite(parsed.getTime())) return '';
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth() + 1;
+  const day = parsed.getDate();
+  return isValidDateParts(year, month, day) ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
+}
+
+function isValidDateParts(year: number, month: number, day: number): boolean {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 export function localDateLabel(value: string, options?: Intl.DateTimeFormatOptions): string {

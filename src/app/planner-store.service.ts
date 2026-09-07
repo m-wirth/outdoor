@@ -195,6 +195,7 @@ function normalizeState(state: PlannerState): PlannerState {
       people: training.people.map((person) => ({
         ...person,
         expert: !!person.expert,
+        birthDate: String(person.birthDate ?? ''),
         nutritionPreferences: normalizeNutritionPreferences(person.nutritionPreferences),
         medicalInformation: String(person.medicalInformation ?? '')
       }))
@@ -207,6 +208,7 @@ function normalizePersonDraft(draft: PersonDraft): PersonDraft {
   return {
     ...draft,
     expert,
+    birthDate: draft.birthDate.trim(),
     nutritionPreferences: normalizeNutritionPreferences(draft.nutritionPreferences),
     medicalInformation: draft.medicalInformation.trim()
   };
