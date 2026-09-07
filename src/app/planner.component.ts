@@ -130,7 +130,7 @@ export class PlannerComponent {
     return courses.flatMap((course) => this.courseMaterialOptions.map((option) => ({
       course: course.name,
       option,
-      count: this.activePeople().filter((person) => person.subTrainingId === course.id && person.courseMaterials === option).length
+      count: this.participants().filter((person) => person.subTrainingId === course.id && person.courseMaterials === option).length
     }))).filter((row) => row.count > 0);
   });
   readonly fieldbedCount = computed(() => this.activePeople().filter((person) => person.fieldbedRequested).length);

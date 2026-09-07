@@ -112,8 +112,8 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     expert: column('expert', 'experte'),
     nutritionPreferences: column('nutrition_preferences', 'essgewohnheiten', 'ernaehrung', 'ernahrung', 'allergien', 'allergies'),
     medicalInformation: column('medical_information', 'medizinische_informationen', 'medizinisch', 'gesundheit', 'health_info'),
-    courseMaterials: column('course_materials', 'kursunterlagen', 'unterlagen', 'kursunterlage'),
-    fieldbedRequested: column('fieldbed', 'feldbett', 'feldbett_ausleihen', 'fieldbed_requested')
+    courseMaterials: column('course_materials', 'kursunterlagen', 'unterlagen', 'kursunterlage', 'kursrechnungen::fk_kursleistungenviername'),
+    fieldbedRequested: column('fieldbed', 'feldbett', 'feldbett_ausleihen', 'fieldbed_requested', 'kursrechnungen::fk_kursleistungendreiname')
   };
   if (columns.courseMaterials < 0) columns.courseMaterials = fuzzyColumn('kursunterlagen', 'kursunterlage');
   if (columns.fieldbedRequested < 0) columns.fieldbedRequested = fuzzyColumn('feldbett');
@@ -183,9 +183,11 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
     subTraining: column('kurs_kuerzel'),
     nutrition: column('person_datenbank::person_gesundheit_lebensmittel'),
     medical: column('person_datenbank::person_gesundheit_medikamente'),
-    courseMaterials: fuzzyColumn('kursunterlagen', 'kursunterlage'),
-    fieldbedRequested: fuzzyColumn('feldbett')
+    courseMaterials: column('kursrechnungen::fk_kursleistungenviername'),
+    fieldbedRequested: column('kursrechnungen::fk_kursleistungendreiname')
   };
+  if (columns.courseMaterials < 0) columns.courseMaterials = fuzzyColumn('kursunterlagen', 'kursunterlage');
+  if (columns.fieldbedRequested < 0) columns.fieldbedRequested = fuzzyColumn('feldbett');
   const existing = new Set(training.people.map((person) => importDuplicateKey(person.firstName, person.lastName, person.birthDate)));
   const seen = new Set<string>();
 
@@ -244,7 +246,10 @@ function parseCourseMaterials(value: string): CourseMaterialOption | null {
 
 function parseBoolean(value: string): boolean {
   const normalized = normalizeOptionKey(value);
-  if (!normalized || ['nein', 'no', 'false', '0'].includes(normalized) || normalized.includes('kein_feldbett')) return false;
+  if (!normalized
+    || ['nein', 'no', 'false', '0'].includes(normalized)
+    || normalized.includes('kein_feldbett')
+    || normalized.includes('organisiere_mich_selber')) return false;
   return ['ja', 'yes', 'true', '1', 'x', 'checked', 'angekreuzt', 'ausleihen'].includes(normalized)
     || normalized.includes('feldbett')
     || normalized.includes('ausleihen');

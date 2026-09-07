@@ -84,12 +84,12 @@ describe('planner CSV import', () => {
 
   it('imports GTQ CSV rows with name duplicate keys and GTQ mappings', () => {
     const csv = [
-      ['Person Vorname', 'Person Name', 'Person Geb', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'Person Datenbank::Person Gesundheit Lebensmittel', 'Person Datenbank::Person Gesundheit Medikamente', 'Kursunterlagen', '02. Ich möchte ein Feldbett ausleihen (CHF 0)'],
-      ['Arti', 'Muster', '2005-01-02', 'm', 'Teilnehmer', 'Wettingen - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', '', '', ''],
-      ['Mara', 'Frei', '2001-05-06', 'w', 'Scout', '', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens', 'Ich nehme den Kursordner aus einem früheren Kurs mit', 'ja']
+      ['Person Vorname', 'Person Name', 'Person Geb', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'Person Datenbank::Person Gesundheit Lebensmittel', 'Person Datenbank::Person Gesundheit Medikamente', 'KursRechnungen::fk_KursLeistungenVierName', 'KursRechnungen::fk_KursLeistungenDreiName'],
+      ['Arti', 'Muster', '2005-01-02', 'm', 'Teilnehmer', 'Wettingen - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', '', '', '1. Ich organisiere mich selber (CHF 0)'],
+      ['Mara', 'Frei', '2001-05-06', 'w', 'Scout', '', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens', 'Ich nehme den Kursordner aus einem früheren Kurs mit', '2. Ich möchte ein Feldbett ausleihen (CHF 0)']
     ].map((row) => row.join(';')).join('\n');
     const rows = parsePlannerCsv(csv, training);
-    expect(rows[0]).toMatchObject({ duplicate: true, valid: true });
+    expect(rows[0]).toMatchObject({ duplicate: true, valid: true, fieldbedRequested: false });
     expect(rows[1]).toMatchObject({
       firstName: 'Mara',
       lastName: 'Frei',
