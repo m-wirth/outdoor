@@ -32,6 +32,7 @@ import {
   plannedPresence,
   visibleTrainingDates
 } from './planner-utils';
+import { downloadParticipantListXlsx } from './xlsx-export';
 
 type PlannerTab = 'dashboard' | 'matrix' | 'people' | 'settings' | 'report';
 type SortDirection = 'asc' | 'desc';
@@ -71,7 +72,17 @@ const EMPTY_PERSON: PersonDraft = {
   nutritionPreferences: [],
   medicalInformation: '',
   courseMaterials: null,
-  fieldbedRequested: false
+  fieldbedRequested: false,
+  address: '',
+  streetNumber: '',
+  postalCode: '',
+  city: '',
+  privatePhone: '',
+  mobilePhone: '',
+  email: '',
+  rrNumber: '',
+  rrStapoName: '',
+  courseCode: ''
 };
 
 @Component({
@@ -255,7 +266,17 @@ export class PlannerComponent {
       nutritionPreferences: [...person.nutritionPreferences],
       medicalInformation: person.medicalInformation,
       courseMaterials: person.courseMaterials,
-      fieldbedRequested: person.fieldbedRequested
+      fieldbedRequested: person.fieldbedRequested,
+      address: person.address,
+      streetNumber: person.streetNumber,
+      postalCode: person.postalCode,
+      city: person.city,
+      privatePhone: person.privatePhone,
+      mobilePhone: person.mobilePhone,
+      email: person.email,
+      rrNumber: person.rrNumber,
+      rrStapoName: person.rrStapoName,
+      courseCode: person.courseCode
     } : { ...EMPTY_PERSON, nutritionPreferences: [] };
     this.personEditorOpen.set(true);
   }
@@ -271,7 +292,17 @@ export class PlannerComponent {
       expert: this.canBeExpert(this.personDraft.role) && !!this.personDraft.expert,
       nutritionPreferences: [...new Set(this.personDraft.nutritionPreferences)],
       medicalInformation: this.personDraft.medicalInformation.trim(),
-      fieldbedRequested: !!this.personDraft.fieldbedRequested
+      fieldbedRequested: !!this.personDraft.fieldbedRequested,
+      address: this.personDraft.address.trim(),
+      streetNumber: this.personDraft.streetNumber.trim(),
+      postalCode: this.personDraft.postalCode.trim(),
+      city: this.personDraft.city.trim(),
+      privatePhone: this.personDraft.privatePhone.trim(),
+      mobilePhone: this.personDraft.mobilePhone.trim(),
+      email: this.personDraft.email.trim(),
+      rrNumber: this.personDraft.rrNumber.trim(),
+      rrStapoName: this.personDraft.rrStapoName.trim(),
+      courseCode: this.personDraft.courseCode.trim()
     };
     if (!draft.firstName || !draft.lastName) {
       this.error.set('Vorname und Name sind erforderlich.');
@@ -480,7 +511,7 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!training) return;
     const rows = this.importRows().filter((row) => row.valid);
-    const result = this.store.importPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation, courseMaterials, fieldbedRequested }) => ({
+    const result = this.store.importPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation, courseMaterials, fieldbedRequested, address, streetNumber, postalCode, city, privatePhone, mobilePhone, email, rrNumber, rrStapoName, courseCode }) => ({
       firstName,
       lastName,
       birthDate,
@@ -492,7 +523,17 @@ export class PlannerComponent {
       nutritionPreferences,
       medicalInformation,
       courseMaterials,
-      fieldbedRequested
+      fieldbedRequested,
+      address,
+      streetNumber,
+      postalCode,
+      city,
+      privatePhone,
+      mobilePhone,
+      email,
+      rrNumber,
+      rrStapoName,
+      courseCode
     })));
     this.importOpen.set(false);
     this.importRows.set([]);
@@ -500,7 +541,13 @@ export class PlannerComponent {
   }
 
   downloadTemplate(): void {
-    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen;kursunterlagen;feldbett\n', 'text/csv;charset=utf-8');
+    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen;kursunterlagen;feldbett;adresse;nr;plz;wohnort;tel_p;handy;mail;rr_nr;rr_stapo_name;kurs_kuerzel\n', 'text/csv;charset=utf-8');
+  }
+
+  exportParticipantList(): void {
+    const training = this.activeTraining();
+    if (!training) return;
+    downloadParticipantListXlsx(training);
   }
 
   exportKitchen(): void {

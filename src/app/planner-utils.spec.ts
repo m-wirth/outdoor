@@ -4,7 +4,7 @@ import { mergeMissingPersonData } from './planner-store.service';
 import { absenceOverlaps, defaultPresence, effectivePeriod, parsePlannerCsv, visibleTrainingDates } from './planner-utils';
 
 const person: PlannerPerson = {
-  id: 'p1', firstName: 'Arti', lastName: 'Muster', birthDate: '2000-12-01', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, nutritionPreferences: [], medicalInformation: '', courseMaterials: null, fieldbedRequested: false, archived: false
+  id: 'p1', firstName: 'Arti', lastName: 'Muster', birthDate: '2000-12-01', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, nutritionPreferences: [], medicalInformation: '', courseMaterials: null, fieldbedRequested: false, address: '', streetNumber: '', postalCode: '', city: '', privatePhone: '', mobilePhone: '', email: '', rrNumber: '', rrStapoName: '', courseCode: '', archived: false
 };
 
 const training: Training = {
@@ -84,9 +84,9 @@ describe('planner CSV import', () => {
 
   it('imports GTQ CSV rows with name duplicate keys and GTQ mappings', () => {
     const csv = [
-      ['Person Vorname', 'Person Name', 'Person Geb', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'Person Datenbank::Person Gesundheit Lebensmittel', 'Person Datenbank::Person Gesundheit Medikamente', 'KursRechnungen::fk_KursLeistungenVierName', 'KursRechnungen::fk_KursLeistungenDreiName'],
-      ['Arti', 'Muster', '2005-01-02', 'm', 'Teilnehmer', 'Wettingen - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', '', '', '1. Ich organisiere mich selber (CHF 0)'],
-      ['Mara', 'Frei', '2001-05-06', 'w', 'Scout', '', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens', 'Ich nehme den Kursordner aus einem früheren Kurs mit', '2. Ich möchte ein Feldbett ausleihen (CHF 0)']
+      ['Person Vorname', 'Person Name', 'Person Adresse', 'Person Hausnummer', 'Person PLZ', 'Person Wohnort', 'Person Geb', 'Person Tel P', 'Person Handy', 'person_mail', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Nr', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'Person Datenbank::Person Gesundheit Lebensmittel', 'Person Datenbank::Person Gesundheit Medikamente', 'KursRechnungen::fk_KursLeistungenVierName', 'KursRechnungen::fk_KursLeistungenDreiName'],
+      ['Arti', 'Muster', 'Stierenweid', '6', '4950', 'Huttwil', '2005-01-02', '062 962 02 07', '078 896 22 21', 'arti@example.test', 'm', 'Teilnehmer', '20', 'Huttwil - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', '', '', '1. Ich organisiere mich selber (CHF 0)'],
+      ['Mara', 'Frei', 'Talackerstrasse', '98', '8404', 'Winterthur', '2001-05-06', '077 440 94 02', '077 440 94 02', 'mara@example.test', 'w', 'Scout', '', 'Reg Nord Ost B', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens', 'Ich nehme den Kursordner aus einem früheren Kurs mit', '2. Ich möchte ein Feldbett ausleihen (CHF 0)']
     ].map((row) => row.join(';')).join('\n');
     const rows = parsePlannerCsv(csv, training);
     expect(rows[0]).toMatchObject({ duplicate: true, valid: true, fieldbedRequested: false });
@@ -97,12 +97,22 @@ describe('planner CSV import', () => {
       gender: 'Weiblich',
       role: 'Scout',
       subTrainingId: 'tlk',
-      external: true,
+      external: false,
       expert: false,
       nutritionPreferences: ['Vegan', 'Laktosefrei'],
       medicalInformation: 'Medikament morgens',
       courseMaterials: 'Ordner aus früherem Kurs',
       fieldbedRequested: true,
+      address: 'Talackerstrasse',
+      streetNumber: '98',
+      postalCode: '8404',
+      city: 'Winterthur',
+      privatePhone: '077 440 94 02',
+      mobilePhone: '077 440 94 02',
+      email: 'mara@example.test',
+      rrNumber: '',
+      rrStapoName: 'Reg Nord Ost B',
+      courseCode: 'TLK 2026-1',
       valid: true
     });
   });
@@ -118,7 +128,17 @@ describe('planner CSV import', () => {
       nutritionPreferences: ['Vegetarisch'],
       medicalInformation: '',
       courseMaterials: null,
-      fieldbedRequested: false
+      fieldbedRequested: false,
+      address: '',
+      streetNumber: '',
+      postalCode: '',
+      city: '',
+      privatePhone: '',
+      mobilePhone: '',
+      email: '',
+      rrNumber: '',
+      rrStapoName: '',
+      courseCode: ''
     };
     const merged = mergeMissingPersonData(existing, {
       firstName: 'Arti',
@@ -132,7 +152,17 @@ describe('planner CSV import', () => {
       nutritionPreferences: ['Vegetarisch', 'Glutenfrei'],
       medicalInformation: 'Asthma Spray dabei',
       courseMaterials: 'Neuer Ordner',
-      fieldbedRequested: true
+      fieldbedRequested: true,
+      address: 'Stierenweid',
+      streetNumber: '6',
+      postalCode: '4950',
+      city: 'Huttwil',
+      privatePhone: '062 962 02 07',
+      mobilePhone: '078 896 22 21',
+      email: 'arti@example.test',
+      rrNumber: '20',
+      rrStapoName: 'Huttwil - Outdoor',
+      courseCode: 'GLK 2026-1'
     });
     expect(merged).toMatchObject({
       birthDate: '2005-01-02',
@@ -144,7 +174,17 @@ describe('planner CSV import', () => {
       nutritionPreferences: ['Vegetarisch', 'Glutenfrei'],
       medicalInformation: 'Asthma Spray dabei',
       courseMaterials: 'Neuer Ordner',
-      fieldbedRequested: true
+      fieldbedRequested: true,
+      address: 'Stierenweid',
+      streetNumber: '6',
+      postalCode: '4950',
+      city: 'Huttwil',
+      privatePhone: '062 962 02 07',
+      mobilePhone: '078 896 22 21',
+      email: 'arti@example.test',
+      rrNumber: '20',
+      rrStapoName: 'Huttwil - Outdoor',
+      courseCode: 'GLK 2026-1'
     });
   });
 });

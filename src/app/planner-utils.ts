@@ -104,7 +104,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
   const columns = {
     firstName: column('first_name', 'vorname'),
     lastName: column('last_name', 'name', 'nachname'),
-    birthDate: column('birth_date', 'geburtsdatum', 'geburtstag', 'person_geb'),
+    birthDate: column('birth_date', 'geburtsdatum', 'geburtstag', 'geb', 'person_geb'),
     gender: column('gender', 'geschlecht'),
     role: column('role', 'funktion', 'rolle'),
     subTraining: column('sub_training', 'kurs', 'unterkurs'),
@@ -113,7 +113,17 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     nutritionPreferences: column('nutrition_preferences', 'essgewohnheiten', 'ernaehrung', 'ernahrung', 'allergien', 'allergies'),
     medicalInformation: column('medical_information', 'medizinische_informationen', 'medizinisch', 'gesundheit', 'health_info'),
     courseMaterials: column('course_materials', 'kursunterlagen', 'unterlagen', 'kursunterlage', 'kursrechnungen::fk_kursleistungenviername'),
-    fieldbedRequested: column('fieldbed', 'feldbett', 'feldbett_ausleihen', 'fieldbed_requested', 'kursrechnungen::fk_kursleistungendreiname')
+    fieldbedRequested: column('fieldbed', 'feldbett', 'feldbett_ausleihen', 'fieldbed_requested', 'kursrechnungen::fk_kursleistungendreiname'),
+    address: column('address', 'adresse', 'person_adresse'),
+    streetNumber: column('street_number', 'nr', 'hausnummer', 'person_hausnummer'),
+    postalCode: column('postal_code', 'plz', 'person_plz'),
+    city: column('city', 'wohnort', 'ort', 'person_wohnort'),
+    privatePhone: column('private_phone', 'tel_p', 'telefon_privat', 'person_tel_p'),
+    mobilePhone: column('mobile_phone', 'handy', 'mobile', 'person_handy'),
+    email: column('email', 'mail', 'e_mail', 'person_mail'),
+    rrNumber: column('rr_number', 'rr_nr', 'rr_nr.', 'person_rr_stapo_nr'),
+    rrStapoName: column('rr_stapo_name', 'rr_stapo', 'person_rr_stapo_name'),
+    courseCode: column('course_code', 'kurs_kuerzel', 'kurs_kurzel')
   };
   if (columns.courseMaterials < 0) columns.courseMaterials = fuzzyColumn('kursunterlagen', 'kursunterlage');
   if (columns.fieldbedRequested < 0) columns.fieldbedRequested = fuzzyColumn('feldbett');
@@ -134,6 +144,16 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     const medicalInformation = value(row, columns.medicalInformation);
     const courseMaterials = parseCourseMaterials(value(row, columns.courseMaterials));
     const fieldbedRequested = parseBoolean(value(row, columns.fieldbedRequested));
+    const address = value(row, columns.address);
+    const streetNumber = value(row, columns.streetNumber);
+    const postalCode = value(row, columns.postalCode);
+    const city = value(row, columns.city);
+    const privatePhone = value(row, columns.privatePhone);
+    const mobilePhone = value(row, columns.mobilePhone);
+    const email = value(row, columns.email);
+    const rrNumber = value(row, columns.rrNumber);
+    const rrStapoName = value(row, columns.rrStapoName);
+    const courseCode = value(row, columns.courseCode);
     const errors: string[] = [];
     if (!firstName) errors.push('Vorname fehlt.');
     if (!lastName) errors.push('Name fehlt.');
@@ -158,6 +178,16 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
       medicalInformation,
       courseMaterials,
       fieldbedRequested,
+      address,
+      streetNumber,
+      postalCode,
+      city,
+      privatePhone,
+      mobilePhone,
+      email,
+      rrNumber,
+      rrStapoName,
+      courseCode,
       duplicate,
       valid: errors.length === 0,
       errors
@@ -184,7 +214,17 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
     nutrition: column('person_datenbank::person_gesundheit_lebensmittel'),
     medical: column('person_datenbank::person_gesundheit_medikamente'),
     courseMaterials: column('kursrechnungen::fk_kursleistungenviername'),
-    fieldbedRequested: column('kursrechnungen::fk_kursleistungendreiname')
+    fieldbedRequested: column('kursrechnungen::fk_kursleistungendreiname'),
+    address: column('person_adresse'),
+    streetNumber: column('person_hausnummer'),
+    postalCode: column('person_plz'),
+    city: column('person_wohnort'),
+    privatePhone: column('person_tel_p'),
+    mobilePhone: column('person_handy'),
+    email: column('person_mail'),
+    rrNumber: column('person_rr_stapo_nr'),
+    rrStapoName: column('person_rr_stapo_name'),
+    courseCode: column('kurs_kuerzel')
   };
   if (columns.courseMaterials < 0) columns.courseMaterials = fuzzyColumn('kursunterlagen', 'kursunterlage');
   if (columns.fieldbedRequested < 0) columns.fieldbedRequested = fuzzyColumn('feldbett');
@@ -203,6 +243,7 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
       : null;
     const stapoName = value(row, columns.stapoName);
     const congregationName = value(row, columns.congregationName);
+    const courseCode = value(row, columns.courseCode);
     const errors: string[] = [];
     if (!firstName) errors.push('Vorname fehlt.');
     if (!lastName) errors.push('Name fehlt.');
@@ -228,6 +269,16 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
       medicalInformation: value(row, columns.medical),
       courseMaterials: parseCourseMaterials(value(row, columns.courseMaterials)),
       fieldbedRequested: parseBoolean(value(row, columns.fieldbedRequested)),
+      address: value(row, columns.address),
+      streetNumber: value(row, columns.streetNumber),
+      postalCode: value(row, columns.postalCode),
+      city: value(row, columns.city),
+      privatePhone: value(row, columns.privatePhone),
+      mobilePhone: value(row, columns.mobilePhone),
+      email: value(row, columns.email),
+      rrNumber: value(row, columns.rrNumber),
+      rrStapoName: value(row, columns.rrStapoName),
+      courseCode,
       duplicate,
       valid: errors.length === 0,
       errors
@@ -422,6 +473,13 @@ function parseCsv(text: string, delimiter: string): string[][] {
 function normalizeBirthDate(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
+  if (/^\d{4,5}$/.test(trimmed)) {
+    const serial = Number(trimmed);
+    if (serial >= 20_000 && serial <= 60_000) {
+      const excelEpoch = Date.UTC(1899, 11, 30);
+      return isoDate(new Date(excelEpoch + serial * DAY_MS));
+    }
+  }
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
   if (iso) return isValidDateParts(Number(iso[1]), Number(iso[2]), Number(iso[3])) ? trimmed : '';
   const swiss = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(trimmed);

@@ -229,7 +229,17 @@ function normalizeState(state: PlannerState): PlannerState {
         nutritionPreferences: normalizeNutritionPreferences(person.nutritionPreferences),
         medicalInformation: String(person.medicalInformation ?? ''),
         courseMaterials: normalizeCourseMaterials(person.courseMaterials),
-        fieldbedRequested: !!person.fieldbedRequested
+        fieldbedRequested: !!person.fieldbedRequested,
+        address: String(person.address ?? ''),
+        streetNumber: String(person.streetNumber ?? ''),
+        postalCode: String(person.postalCode ?? ''),
+        city: String(person.city ?? ''),
+        privatePhone: String(person.privatePhone ?? ''),
+        mobilePhone: String(person.mobilePhone ?? ''),
+        email: String(person.email ?? ''),
+        rrNumber: String(person.rrNumber ?? ''),
+        rrStapoName: String(person.rrStapoName ?? ''),
+        courseCode: String(person.courseCode ?? '')
       }))
     }))
   };
@@ -244,7 +254,17 @@ function normalizePersonDraft(draft: PersonDraft): PersonDraft {
     nutritionPreferences: normalizeNutritionPreferences(draft.nutritionPreferences),
     medicalInformation: draft.medicalInformation.trim(),
     courseMaterials: normalizeCourseMaterials(draft.courseMaterials),
-    fieldbedRequested: !!draft.fieldbedRequested
+    fieldbedRequested: !!draft.fieldbedRequested,
+    address: draft.address.trim(),
+    streetNumber: draft.streetNumber.trim(),
+    postalCode: draft.postalCode.trim(),
+    city: draft.city.trim(),
+    privatePhone: draft.privatePhone.trim(),
+    mobilePhone: draft.mobilePhone.trim(),
+    email: draft.email.trim(),
+    rrNumber: draft.rrNumber.trim(),
+    rrStapoName: draft.rrStapoName.trim(),
+    courseCode: draft.courseCode.trim()
   };
 }
 
@@ -258,7 +278,17 @@ export function mergeMissingPersonData(person: PlannerPerson, draft: PersonDraft
     nutritionPreferences: mergedNutritionPreferences,
     medicalInformation: person.medicalInformation || draft.medicalInformation,
     courseMaterials: person.courseMaterials ?? draft.courseMaterials,
-    fieldbedRequested: person.fieldbedRequested || draft.fieldbedRequested
+    fieldbedRequested: person.fieldbedRequested || draft.fieldbedRequested,
+    address: person.address || draft.address,
+    streetNumber: person.streetNumber || draft.streetNumber,
+    postalCode: person.postalCode || draft.postalCode,
+    city: person.city || draft.city,
+    privatePhone: person.privatePhone || draft.privatePhone,
+    mobilePhone: person.mobilePhone || draft.mobilePhone,
+    email: person.email || draft.email,
+    rrNumber: person.rrNumber || draft.rrNumber,
+    rrStapoName: person.rrStapoName || draft.rrStapoName,
+    courseCode: person.courseCode || draft.courseCode
   };
   return hasPersonChanged(person, merged) ? merged : person;
 }
@@ -270,6 +300,16 @@ function hasPersonChanged(before: PlannerPerson, after: PlannerPerson): boolean 
     || before.medicalInformation !== after.medicalInformation
     || before.courseMaterials !== after.courseMaterials
     || before.fieldbedRequested !== after.fieldbedRequested
+    || before.address !== after.address
+    || before.streetNumber !== after.streetNumber
+    || before.postalCode !== after.postalCode
+    || before.city !== after.city
+    || before.privatePhone !== after.privatePhone
+    || before.mobilePhone !== after.mobilePhone
+    || before.email !== after.email
+    || before.rrNumber !== after.rrNumber
+    || before.rrStapoName !== after.rrStapoName
+    || before.courseCode !== after.courseCode
     || before.nutritionPreferences.length !== after.nutritionPreferences.length
     || before.nutritionPreferences.some((preference, index) => preference !== after.nutritionPreferences[index]);
 }

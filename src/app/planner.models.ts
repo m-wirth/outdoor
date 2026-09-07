@@ -62,6 +62,16 @@ export interface PlannerPerson {
   medicalInformation: string;
   courseMaterials: CourseMaterialOption | null;
   fieldbedRequested: boolean;
+  address: string;
+  streetNumber: string;
+  postalCode: string;
+  city: string;
+  privatePhone: string;
+  mobilePhone: string;
+  email: string;
+  rrNumber: string;
+  rrStapoName: string;
+  courseCode: string;
   archived: boolean;
 }
 
@@ -116,6 +126,16 @@ export interface PersonDraft {
   medicalInformation: string;
   courseMaterials: CourseMaterialOption | null;
   fieldbedRequested: boolean;
+  address: string;
+  streetNumber: string;
+  postalCode: string;
+  city: string;
+  privatePhone: string;
+  mobilePhone: string;
+  email: string;
+  rrNumber: string;
+  rrStapoName: string;
+  courseCode: string;
 }
 
 export interface ImportRow extends PersonDraft {
