@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PlannerPerson, Training } from './planner.models';
+import { mergeMissingPersonData } from './planner-store.service';
 import { absenceOverlaps, defaultPresence, effectivePeriod, parsePlannerCsv, visibleTrainingDates } from './planner-utils';
 
 const person: PlannerPerson = {
@@ -48,14 +49,14 @@ describe('planner calculations', () => {
 });
 
 describe('planner CSV import', () => {
-  it('accepts the standard semicolon template and ignores duplicate names', () => {
+  it('accepts the standard semicolon template and marks duplicate names for merging', () => {
     const csv = [
       'first_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen',
       'Arti;Muster;2005-01-02;m;Teilnehmer;GLK;nein;ja;;',
       'Nina;Tal;1999-03-04;w;Event Leiter;GLK;ja;ja;vegetarisch, glutenfrei;Asthma Spray dabei'
     ].join('\n');
     const rows = parsePlannerCsv(csv, training);
-    expect(rows[0]).toMatchObject({ duplicate: true, valid: false });
+    expect(rows[0]).toMatchObject({ duplicate: true, valid: true });
     expect(rows[0]).toMatchObject({ expert: false });
     expect(rows[1]).toMatchObject({
       firstName: 'Nina',
@@ -86,7 +87,7 @@ describe('planner CSV import', () => {
       ['Mara', 'Frei', '2001-05-06', 'w', 'Scout', '', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens']
     ].map((row) => row.join(';')).join('\n');
     const rows = parsePlannerCsv(csv, training);
-    expect(rows[0]).toMatchObject({ duplicate: true, valid: false });
+    expect(rows[0]).toMatchObject({ duplicate: true, valid: true });
     expect(rows[1]).toMatchObject({
       firstName: 'Mara',
       lastName: 'Frei',
@@ -99,6 +100,41 @@ describe('planner CSV import', () => {
       nutritionPreferences: ['Vegan', 'Laktosefrei'],
       medicalInformation: 'Medikament morgens',
       valid: true
+    });
+  });
+
+  it('merges duplicate import data without overwriting existing fields', () => {
+    const existing: PlannerPerson = {
+      ...person,
+      birthDate: '',
+      gender: 'Keine Angabe',
+      subTrainingId: null,
+      external: false,
+      expert: true,
+      nutritionPreferences: ['Vegetarisch'],
+      medicalInformation: ''
+    };
+    const merged = mergeMissingPersonData(existing, {
+      firstName: 'Arti',
+      lastName: 'Muster',
+      birthDate: '2005-01-02',
+      gender: 'Weiblich',
+      role: 'Teilnehmer',
+      subTrainingId: 'glk',
+      external: true,
+      expert: false,
+      nutritionPreferences: ['Vegetarisch', 'Glutenfrei'],
+      medicalInformation: 'Asthma Spray dabei'
+    });
+    expect(merged).toMatchObject({
+      birthDate: '2005-01-02',
+      gender: 'Weiblich',
+      role: 'Teilnehmer',
+      subTrainingId: 'glk',
+      external: false,
+      expert: true,
+      nutritionPreferences: ['Vegetarisch', 'Glutenfrei'],
+      medicalInformation: 'Asthma Spray dabei'
     });
   });
 });

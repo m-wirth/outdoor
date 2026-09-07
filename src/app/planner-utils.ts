@@ -148,7 +148,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
       nutritionPreferences,
       medicalInformation,
       duplicate,
-      valid: errors.length === 0 && !duplicate,
+      valid: errors.length === 0,
       errors
     };
   });
@@ -211,7 +211,7 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
       nutritionPreferences: parseNutritionPreferences(value(row, columns.nutrition)),
       medicalInformation: value(row, columns.medical),
       duplicate,
-      valid: errors.length === 0 && !duplicate,
+      valid: errors.length === 0,
       errors
     };
   });

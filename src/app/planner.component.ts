@@ -457,7 +457,7 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!training) return;
     const rows = this.importRows().filter((row) => row.valid);
-    this.store.addPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation }) => ({
+    const result = this.store.importPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation }) => ({
       firstName,
       lastName,
       birthDate,
@@ -471,7 +471,7 @@ export class PlannerComponent {
     })));
     this.importOpen.set(false);
     this.importRows.set([]);
-    this.notice.set(`${rows.length} Personen wurden importiert.`);
+    this.notice.set(`${result.added} Personen wurden importiert, ${result.updated} bestehende Personen ergänzt.`);
   }
 
   downloadTemplate(): void {

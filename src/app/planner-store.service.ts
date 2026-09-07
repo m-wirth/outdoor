@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { Absence, DayPresence, EMPTY_STATE, NUTRITION_PREFERENCES, NutritionPreference, PersonDraft, PlannerPerson, PlannerState, SubTraining, Training } from './planner.models';
-import { id } from './planner-utils';
+import { id, importDuplicateKey } from './planner-utils';
 
 const DB_NAME = 'trailbox-planner';
 const STORE_NAME = 'state';
@@ -73,6 +73,36 @@ export class PlannerStore {
       ...training,
       people: [...training.people, ...drafts.map((draft) => ({ id: id('person'), ...normalizePersonDraft(draft), archived: false }))]
     }));
+  }
+
+  importPeople(trainingId: string, drafts: PersonDraft[]): { added: number; updated: number } {
+    let result = { added: 0, updated: 0 };
+    this.updateOne(trainingId, (training) => {
+      const people = [...training.people];
+      const peopleByImportKey = new Map<string, number>();
+      people.forEach((person, index) => {
+        const key = importDuplicateKey(person.firstName, person.lastName, person.birthDate);
+        if (key && !peopleByImportKey.has(key)) peopleByImportKey.set(key, index);
+      });
+      result = drafts.reduce((counts, draft) => {
+        const normalizedDraft = normalizePersonDraft(draft);
+        const key = importDuplicateKey(normalizedDraft.firstName, normalizedDraft.lastName, normalizedDraft.birthDate);
+        const existingIndex = peopleByImportKey.get(key);
+        if (existingIndex === undefined) {
+          people.push({ id: id('person'), ...normalizedDraft, archived: false });
+          peopleByImportKey.set(key, people.length - 1);
+          return { ...counts, added: counts.added + 1 };
+        }
+        const merged = mergeMissingPersonData(people[existingIndex], normalizedDraft);
+        if (merged !== people[existingIndex]) {
+          people[existingIndex] = merged;
+          return { ...counts, updated: counts.updated + 1 };
+        }
+        return counts;
+      }, { added: 0, updated: 0 });
+      return { ...training, people };
+    });
+    return result;
   }
 
   updatePerson(trainingId: string, personId: string, draft: PersonDraft): void {
@@ -212,6 +242,28 @@ function normalizePersonDraft(draft: PersonDraft): PersonDraft {
     nutritionPreferences: normalizeNutritionPreferences(draft.nutritionPreferences),
     medicalInformation: draft.medicalInformation.trim()
   };
+}
+
+export function mergeMissingPersonData(person: PlannerPerson, draft: PersonDraft): PlannerPerson {
+  const mergedNutritionPreferences = normalizeNutritionPreferences([...person.nutritionPreferences, ...draft.nutritionPreferences]);
+  const merged: PlannerPerson = {
+    ...person,
+    birthDate: person.birthDate || draft.birthDate,
+    gender: person.gender === 'Keine Angabe' && draft.gender !== 'Keine Angabe' ? draft.gender : person.gender,
+    subTrainingId: person.subTrainingId ?? draft.subTrainingId,
+    nutritionPreferences: mergedNutritionPreferences,
+    medicalInformation: person.medicalInformation || draft.medicalInformation
+  };
+  return hasPersonChanged(person, merged) ? merged : person;
+}
+
+function hasPersonChanged(before: PlannerPerson, after: PlannerPerson): boolean {
+  return before.birthDate !== after.birthDate
+    || before.gender !== after.gender
+    || before.subTrainingId !== after.subTrainingId
+    || before.medicalInformation !== after.medicalInformation
+    || before.nutritionPreferences.length !== after.nutritionPreferences.length
+    || before.nutritionPreferences.some((preference, index) => preference !== after.nutritionPreferences[index]);
 }
 
 function normalizeNutritionPreferences(value: unknown): NutritionPreference[] {
