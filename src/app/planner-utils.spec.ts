@@ -4,7 +4,7 @@ import { mergeMissingPersonData } from './planner-store.service';
 import { absenceOverlaps, defaultPresence, effectivePeriod, parsePlannerCsv, visibleTrainingDates } from './planner-utils';
 
 const person: PlannerPerson = {
-  id: 'p1', firstName: 'Arti', lastName: 'Muster', birthDate: '2000-12-01', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, nutritionPreferences: [], medicalInformation: '', archived: false
+  id: 'p1', firstName: 'Arti', lastName: 'Muster', birthDate: '2000-12-01', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, nutritionPreferences: [], medicalInformation: '', courseMaterials: null, fieldbedRequested: false, archived: false
 };
 
 const training: Training = {
@@ -51,9 +51,9 @@ describe('planner calculations', () => {
 describe('planner CSV import', () => {
   it('accepts the standard semicolon template and marks duplicate names for merging', () => {
     const csv = [
-      'first_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen',
+      'first_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen;kursunterlagen;feldbett',
       'Arti;Muster;2005-01-02;m;Teilnehmer;GLK;nein;ja;;',
-      'Nina;Tal;1999-03-04;w;Event Leiter;GLK;ja;ja;vegetarisch, glutenfrei;Asthma Spray dabei'
+      'Nina;Tal;1999-03-04;w;Event Leiter;GLK;ja;ja;vegetarisch, glutenfrei;Asthma Spray dabei;Ich beziehe die Unterlagen digital und benötige keinen Ordner (gratis);x'
     ].join('\n');
     const rows = parsePlannerCsv(csv, training);
     expect(rows[0]).toMatchObject({ duplicate: true, valid: true });
@@ -68,6 +68,8 @@ describe('planner CSV import', () => {
       expert: true,
       nutritionPreferences: ['Vegetarisch', 'Glutenfrei'],
       medicalInformation: 'Asthma Spray dabei',
+      courseMaterials: 'Digital ohne Ordner',
+      fieldbedRequested: true,
       valid: true
     });
   });
@@ -82,9 +84,9 @@ describe('planner CSV import', () => {
 
   it('imports GTQ CSV rows with name duplicate keys and GTQ mappings', () => {
     const csv = [
-      ['Person Vorname', 'Person Name', 'Person Geb', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'Person Datenbank::Person Gesundheit Lebensmittel', 'Person Datenbank::Person Gesundheit Medikamente'],
-      ['Arti', 'Muster', '2005-01-02', 'm', 'Teilnehmer', 'Wettingen - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', ''],
-      ['Mara', 'Frei', '2001-05-06', 'w', 'Scout', '', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens']
+      ['Person Vorname', 'Person Name', 'Person Geb', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'Person Datenbank::Person Gesundheit Lebensmittel', 'Person Datenbank::Person Gesundheit Medikamente', 'Kursunterlagen', '02. Ich möchte ein Feldbett ausleihen (CHF 0)'],
+      ['Arti', 'Muster', '2005-01-02', 'm', 'Teilnehmer', 'Wettingen - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', '', '', ''],
+      ['Mara', 'Frei', '2001-05-06', 'w', 'Scout', '', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens', 'Ich nehme den Kursordner aus einem früheren Kurs mit', 'ja']
     ].map((row) => row.join(';')).join('\n');
     const rows = parsePlannerCsv(csv, training);
     expect(rows[0]).toMatchObject({ duplicate: true, valid: true });
@@ -99,6 +101,8 @@ describe('planner CSV import', () => {
       expert: false,
       nutritionPreferences: ['Vegan', 'Laktosefrei'],
       medicalInformation: 'Medikament morgens',
+      courseMaterials: 'Ordner aus früherem Kurs',
+      fieldbedRequested: true,
       valid: true
     });
   });
@@ -112,7 +116,9 @@ describe('planner CSV import', () => {
       external: false,
       expert: true,
       nutritionPreferences: ['Vegetarisch'],
-      medicalInformation: ''
+      medicalInformation: '',
+      courseMaterials: null,
+      fieldbedRequested: false
     };
     const merged = mergeMissingPersonData(existing, {
       firstName: 'Arti',
@@ -124,7 +130,9 @@ describe('planner CSV import', () => {
       external: true,
       expert: false,
       nutritionPreferences: ['Vegetarisch', 'Glutenfrei'],
-      medicalInformation: 'Asthma Spray dabei'
+      medicalInformation: 'Asthma Spray dabei',
+      courseMaterials: 'Neuer Ordner',
+      fieldbedRequested: true
     });
     expect(merged).toMatchObject({
       birthDate: '2005-01-02',
@@ -134,7 +142,9 @@ describe('planner CSV import', () => {
       external: false,
       expert: true,
       nutritionPreferences: ['Vegetarisch', 'Glutenfrei'],
-      medicalInformation: 'Asthma Spray dabei'
+      medicalInformation: 'Asthma Spray dabei',
+      courseMaterials: 'Neuer Ordner',
+      fieldbedRequested: true
     });
   });
 });

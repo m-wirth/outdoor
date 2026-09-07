@@ -1,4 +1,6 @@
 import {
+  CourseMaterialOption,
+  COURSE_MATERIAL_OPTIONS,
   DayPresence,
   Gender,
   GENDERS,
@@ -98,6 +100,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
   const headers = rows[0].map(normalizeHeader);
   if (isGtqHeaders(headers)) return parseGtqRows(rows, headers, training);
   const column = (...names: string[]): number => headers.findIndex((header) => names.includes(header));
+  const fuzzyColumn = (...needles: string[]): number => headers.findIndex((header) => needles.some((needle) => header.includes(needle)));
   const columns = {
     firstName: column('first_name', 'vorname'),
     lastName: column('last_name', 'name', 'nachname'),
@@ -108,8 +111,12 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     external: column('external', 'extern'),
     expert: column('expert', 'experte'),
     nutritionPreferences: column('nutrition_preferences', 'essgewohnheiten', 'ernaehrung', 'ernahrung', 'allergien', 'allergies'),
-    medicalInformation: column('medical_information', 'medizinische_informationen', 'medizinisch', 'gesundheit', 'health_info')
+    medicalInformation: column('medical_information', 'medizinische_informationen', 'medizinisch', 'gesundheit', 'health_info'),
+    courseMaterials: column('course_materials', 'kursunterlagen', 'unterlagen', 'kursunterlage'),
+    fieldbedRequested: column('fieldbed', 'feldbett', 'feldbett_ausleihen', 'fieldbed_requested')
   };
+  if (columns.courseMaterials < 0) columns.courseMaterials = fuzzyColumn('kursunterlagen', 'kursunterlage');
+  if (columns.fieldbedRequested < 0) columns.fieldbedRequested = fuzzyColumn('feldbett');
   const existing = new Set(training.people.map((person) => importDuplicateKey(person.firstName, person.lastName, person.birthDate)));
   const seen = new Set<string>();
 
@@ -125,6 +132,8 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     const expertValue = value(row, columns.expert).toLocaleLowerCase('de-CH');
     const nutritionPreferences = parseNutritionPreferences(value(row, columns.nutritionPreferences));
     const medicalInformation = value(row, columns.medicalInformation);
+    const courseMaterials = parseCourseMaterials(value(row, columns.courseMaterials));
+    const fieldbedRequested = parseBoolean(value(row, columns.fieldbedRequested));
     const errors: string[] = [];
     if (!firstName) errors.push('Vorname fehlt.');
     if (!lastName) errors.push('Name fehlt.');
@@ -147,6 +156,8 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
       expert: role !== 'Teilnehmer' && role !== 'Gast' && ['ja', 'yes', 'true', '1', 'x'].includes(expertValue),
       nutritionPreferences,
       medicalInformation,
+      courseMaterials,
+      fieldbedRequested,
       duplicate,
       valid: errors.length === 0,
       errors
@@ -160,6 +171,7 @@ function isGtqHeaders(headers: string[]): boolean {
 
 function parseGtqRows(rows: string[][], headers: string[], training: Training): ImportRow[] {
   const column = (...names: string[]): number => headers.findIndex((header) => names.includes(header));
+  const fuzzyColumn = (...needles: string[]): number => headers.findIndex((header) => needles.some((needle) => header.includes(needle)));
   const columns = {
     firstName: column('person_vorname'),
     lastName: column('person_name'),
@@ -170,7 +182,9 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
     congregationName: column('person_gemeinde_name'),
     subTraining: column('kurs_kuerzel'),
     nutrition: column('person_datenbank::person_gesundheit_lebensmittel'),
-    medical: column('person_datenbank::person_gesundheit_medikamente')
+    medical: column('person_datenbank::person_gesundheit_medikamente'),
+    courseMaterials: fuzzyColumn('kursunterlagen', 'kursunterlage'),
+    fieldbedRequested: fuzzyColumn('feldbett')
   };
   const existing = new Set(training.people.map((person) => importDuplicateKey(person.firstName, person.lastName, person.birthDate)));
   const seen = new Set<string>();
@@ -210,11 +224,34 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
       expert: false,
       nutritionPreferences: parseNutritionPreferences(value(row, columns.nutrition)),
       medicalInformation: value(row, columns.medical),
+      courseMaterials: parseCourseMaterials(value(row, columns.courseMaterials)),
+      fieldbedRequested: parseBoolean(value(row, columns.fieldbedRequested)),
       duplicate,
       valid: errors.length === 0,
       errors
     };
   });
+}
+
+function parseCourseMaterials(value: string): CourseMaterialOption | null {
+  const normalized = normalizeOptionKey(value);
+  if (!normalized) return null;
+  if (normalized.includes('noch_keinen_ordner') || normalized.includes('brauche_einen') || normalized.includes('neuer_ordner')) return 'Neuer Ordner';
+  if (normalized.includes('digital') || normalized.includes('keinen_ordner') || normalized.includes('kein_ordner')) return 'Digital ohne Ordner';
+  if (normalized.includes('fruheren_kurs') || normalized.includes('frueheren_kurs') || normalized.includes('fruherem_kurs') || normalized.includes('frueherem_kurs') || normalized.includes('fruherer_kurs')) return 'Ordner aus früherem Kurs';
+  return COURSE_MATERIAL_OPTIONS.find((option) => normalizeOptionKey(option) === normalized) ?? null;
+}
+
+function parseBoolean(value: string): boolean {
+  const normalized = normalizeOptionKey(value);
+  if (!normalized || ['nein', 'no', 'false', '0'].includes(normalized) || normalized.includes('kein_feldbett')) return false;
+  return ['ja', 'yes', 'true', '1', 'x', 'checked', 'angekreuzt', 'ausleihen'].includes(normalized)
+    || normalized.includes('feldbett')
+    || normalized.includes('ausleihen');
+}
+
+function normalizeOptionKey(value: string): string {
+  return value.trim().toLocaleLowerCase('de-CH').normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
 function parseNutritionPreferences(value: string): NutritionPreference[] {

@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Absence, DayPresence, EMPTY_STATE, NUTRITION_PREFERENCES, NutritionPreference, PersonDraft, PlannerPerson, PlannerState, SubTraining, Training } from './planner.models';
+import { Absence, COURSE_MATERIAL_OPTIONS, CourseMaterialOption, DayPresence, EMPTY_STATE, NUTRITION_PREFERENCES, NutritionPreference, PersonDraft, PlannerPerson, PlannerState, SubTraining, Training } from './planner.models';
 import { id, importDuplicateKey } from './planner-utils';
 
 const DB_NAME = 'trailbox-planner';
@@ -227,7 +227,9 @@ function normalizeState(state: PlannerState): PlannerState {
         expert: !!person.expert,
         birthDate: String(person.birthDate ?? ''),
         nutritionPreferences: normalizeNutritionPreferences(person.nutritionPreferences),
-        medicalInformation: String(person.medicalInformation ?? '')
+        medicalInformation: String(person.medicalInformation ?? ''),
+        courseMaterials: normalizeCourseMaterials(person.courseMaterials),
+        fieldbedRequested: !!person.fieldbedRequested
       }))
     }))
   };
@@ -240,7 +242,9 @@ function normalizePersonDraft(draft: PersonDraft): PersonDraft {
     expert,
     birthDate: draft.birthDate.trim(),
     nutritionPreferences: normalizeNutritionPreferences(draft.nutritionPreferences),
-    medicalInformation: draft.medicalInformation.trim()
+    medicalInformation: draft.medicalInformation.trim(),
+    courseMaterials: normalizeCourseMaterials(draft.courseMaterials),
+    fieldbedRequested: !!draft.fieldbedRequested
   };
 }
 
@@ -252,7 +256,9 @@ export function mergeMissingPersonData(person: PlannerPerson, draft: PersonDraft
     gender: person.gender === 'Keine Angabe' && draft.gender !== 'Keine Angabe' ? draft.gender : person.gender,
     subTrainingId: person.subTrainingId ?? draft.subTrainingId,
     nutritionPreferences: mergedNutritionPreferences,
-    medicalInformation: person.medicalInformation || draft.medicalInformation
+    medicalInformation: person.medicalInformation || draft.medicalInformation,
+    courseMaterials: person.courseMaterials ?? draft.courseMaterials,
+    fieldbedRequested: person.fieldbedRequested || draft.fieldbedRequested
   };
   return hasPersonChanged(person, merged) ? merged : person;
 }
@@ -262,6 +268,8 @@ function hasPersonChanged(before: PlannerPerson, after: PlannerPerson): boolean 
     || before.gender !== after.gender
     || before.subTrainingId !== after.subTrainingId
     || before.medicalInformation !== after.medicalInformation
+    || before.courseMaterials !== after.courseMaterials
+    || before.fieldbedRequested !== after.fieldbedRequested
     || before.nutritionPreferences.length !== after.nutritionPreferences.length
     || before.nutritionPreferences.some((preference, index) => preference !== after.nutritionPreferences[index]);
 }
@@ -269,4 +277,8 @@ function hasPersonChanged(before: PlannerPerson, after: PlannerPerson): boolean 
 function normalizeNutritionPreferences(value: unknown): NutritionPreference[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((item): item is NutritionPreference => NUTRITION_PREFERENCES.includes(item as NutritionPreference)))];
+}
+
+function normalizeCourseMaterials(value: unknown): CourseMaterialOption | null {
+  return COURSE_MATERIAL_OPTIONS.includes(value as CourseMaterialOption) ? value as CourseMaterialOption : null;
 }

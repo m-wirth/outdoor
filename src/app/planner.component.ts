@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, effect, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import {
   AbsenceStatus,
+  COURSE_MATERIAL_OPTIONS,
+  CourseMaterialOption,
   Gender,
   GENDERS,
   ImportRow,
@@ -34,7 +36,7 @@ import {
 type PlannerTab = 'dashboard' | 'matrix' | 'people' | 'settings' | 'report';
 type SortDirection = 'asc' | 'desc';
 type MatrixSortKey = 'firstName' | 'lastName' | 'role' | 'subTraining';
-type PeopleSortKey = MatrixSortKey | 'birthDate' | 'gender' | 'origin' | 'expert' | 'nutrition' | 'medical';
+type PeopleSortKey = MatrixSortKey | 'birthDate' | 'gender' | 'origin' | 'expert' | 'nutrition' | 'medical' | 'courseMaterials' | 'fieldbed';
 
 interface SortState<T extends string> {
   key: T;
@@ -67,7 +69,9 @@ const EMPTY_PERSON: PersonDraft = {
   external: false,
   expert: false,
   nutritionPreferences: [],
-  medicalInformation: ''
+  medicalInformation: '',
+  courseMaterials: null,
+  fieldbedRequested: false
 };
 
 @Component({
@@ -81,6 +85,7 @@ export class PlannerComponent {
   readonly roles = PLANNER_ROLES;
   readonly genders = GENDERS;
   readonly nutritionPreferences = NUTRITION_PREFERENCES;
+  readonly courseMaterialOptions = COURSE_MATERIAL_OPTIONS;
   readonly periods = PERIODS;
   readonly periodLabels: Record<Period, { short: string; long: string }> = {
     morning: { short: 'VM', long: 'Vormittag' },
@@ -118,6 +123,17 @@ export class PlannerComponent {
   readonly nutritionSummary = computed(() => this.nutritionPreferences
     .map((preference) => ({ label: preference, count: this.activePeople().filter((person) => person.nutritionPreferences.includes(preference)).length }))
     .filter((row) => row.count > 0));
+  readonly courseMaterialSummary = computed(() => {
+    const training = this.activeTraining();
+    if (!training) return [];
+    const courses = [...training.subTrainings.map((course) => ({ id: course.id, name: course.name })), { id: null, name: 'Ohne Unterkurs' }];
+    return courses.flatMap((course) => this.courseMaterialOptions.map((option) => ({
+      course: course.name,
+      option,
+      count: this.activePeople().filter((person) => person.subTrainingId === course.id && person.courseMaterials === option).length
+    }))).filter((row) => row.count > 0);
+  });
+  readonly fieldbedCount = computed(() => this.activePeople().filter((person) => person.fieldbedRequested).length);
 
   readonly search = signal('');
   readonly roleFilter = signal<PlannerRole | ''>('');
@@ -237,7 +253,9 @@ export class PlannerComponent {
       external: person.external,
       expert: !!person.expert && this.canBeExpert(person.role),
       nutritionPreferences: [...person.nutritionPreferences],
-      medicalInformation: person.medicalInformation
+      medicalInformation: person.medicalInformation,
+      courseMaterials: person.courseMaterials,
+      fieldbedRequested: person.fieldbedRequested
     } : { ...EMPTY_PERSON, nutritionPreferences: [] };
     this.personEditorOpen.set(true);
   }
@@ -252,7 +270,8 @@ export class PlannerComponent {
       birthDate: this.personDraft.birthDate.trim(),
       expert: this.canBeExpert(this.personDraft.role) && !!this.personDraft.expert,
       nutritionPreferences: [...new Set(this.personDraft.nutritionPreferences)],
-      medicalInformation: this.personDraft.medicalInformation.trim()
+      medicalInformation: this.personDraft.medicalInformation.trim(),
+      fieldbedRequested: !!this.personDraft.fieldbedRequested
     };
     if (!draft.firstName || !draft.lastName) {
       this.error.set('Vorname und Name sind erforderlich.');
@@ -385,6 +404,10 @@ export class PlannerComponent {
     return person.nutritionPreferences.length ? person.nutritionPreferences.join(', ') : '–';
   }
 
+  courseMaterialLabel(person: PlannerPerson): string {
+    return courseMaterialShortLabel(person.courseMaterials);
+  }
+
   dateLabel(value: string): string {
     return localDateLabel(value);
   }
@@ -457,7 +480,7 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!training) return;
     const rows = this.importRows().filter((row) => row.valid);
-    const result = this.store.importPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation }) => ({
+    const result = this.store.importPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation, courseMaterials, fieldbedRequested }) => ({
       firstName,
       lastName,
       birthDate,
@@ -467,7 +490,9 @@ export class PlannerComponent {
       external,
       expert,
       nutritionPreferences,
-      medicalInformation
+      medicalInformation,
+      courseMaterials,
+      fieldbedRequested
     })));
     this.importOpen.set(false);
     this.importRows.set([]);
@@ -475,7 +500,7 @@ export class PlannerComponent {
   }
 
   downloadTemplate(): void {
-    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen\n', 'text/csv;charset=utf-8');
+    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen;kursunterlagen;feldbett\n', 'text/csv;charset=utf-8');
   }
 
   exportKitchen(): void {
@@ -563,8 +588,17 @@ export class PlannerComponent {
     if (key === 'expert') return person.expert ? 'Experte' : '';
     if (key === 'nutrition') return this.nutritionLabel(person);
     if (key === 'medical') return person.medicalInformation;
+    if (key === 'courseMaterials') return person.courseMaterials ?? '';
+    if (key === 'fieldbed') return person.fieldbedRequested ? 'Ja' : 'Nein';
     return person[key];
   }
+}
+
+function courseMaterialShortLabel(option: CourseMaterialOption | null): string {
+  if (option === 'Digital ohne Ordner') return 'digital';
+  if (option === 'Neuer Ordner') return 'neuer Ordner';
+  if (option === 'Ordner aus früherem Kurs') return 'alter Ordner';
+  return '–';
 }
 
 function safeFilename(value: string): string {

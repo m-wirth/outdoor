@@ -28,10 +28,17 @@ export const NUTRITION_PREFERENCES = [
   'Koscher'
 ] as const;
 
+export const COURSE_MATERIAL_OPTIONS = [
+  'Digital ohne Ordner',
+  'Neuer Ordner',
+  'Ordner aus früherem Kurs'
+] as const;
+
 export type PlannerRole = typeof PLANNER_ROLES[number];
 export type Gender = typeof GENDERS[number];
 export type Period = typeof PERIODS[number];
 export type NutritionPreference = typeof NUTRITION_PREFERENCES[number];
+export type CourseMaterialOption = typeof COURSE_MATERIAL_OPTIONS[number];
 export type MealPeriod = 'lunch' | 'dinner';
 export type AbsenceStatus = 'pending' | 'approved' | 'rejected';
 
@@ -53,6 +60,8 @@ export interface PlannerPerson {
   expert: boolean;
   nutritionPreferences: NutritionPreference[];
   medicalInformation: string;
+  courseMaterials: CourseMaterialOption | null;
+  fieldbedRequested: boolean;
   archived: boolean;
 }
 
@@ -105,6 +114,8 @@ export interface PersonDraft {
   expert: boolean;
   nutritionPreferences: NutritionPreference[];
   medicalInformation: string;
+  courseMaterials: CourseMaterialOption | null;
+  fieldbedRequested: boolean;
 }
 
 export interface ImportRow extends PersonDraft {
