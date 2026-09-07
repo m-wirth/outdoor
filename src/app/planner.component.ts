@@ -26,7 +26,6 @@ import {
   effectivePeriod,
   localDateLabel,
   importDuplicateKey,
-  parseGtqWorkbook,
   parsePlannerCsv,
   plannedPresence,
   visibleTrainingDates
@@ -450,8 +449,7 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!file || !training) return;
     this.importFileName.set(file.name);
-    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-    this.importRows.set(isExcel ? parseGtqWorkbook(await file.arrayBuffer(), training) : parsePlannerCsv(await file.text(), training));
+    this.importRows.set(parsePlannerCsv(await file.text(), training));
     (event.target as HTMLInputElement).value = '';
   }
 

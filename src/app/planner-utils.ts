@@ -12,7 +12,6 @@ import {
   PlannerRole,
   Training
 } from './planner.models';
-import * as XLSX from 'xlsx';
 
 const DAY_MS = 86_400_000;
 const EARLY_ROLES = new Set<PlannerRole>(['Event Hauptleiter', 'Event Leiter', 'Küche', 'Expertenpraktikant']);
@@ -99,6 +98,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
   const rows = parseCsv(text.replace(/^\uFEFF/, ''), delimiter).filter((row) => row.some((cell) => cell.trim()));
   if (rows.length < 2) return [];
   const headers = rows[0].map(normalizeHeader);
+  if (isGtqHeaders(headers)) return parseGtqRows(rows, headers, training);
   const column = (...names: string[]): number => headers.findIndex((header) => names.includes(header));
   const columns = {
     firstName: column('first_name', 'vorname'),
@@ -156,14 +156,11 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
   });
 }
 
-export function parseGtqWorkbook(buffer: ArrayBuffer, training: Training): ImportRow[] {
-  const workbook = XLSX.read(buffer, { cellDates: true });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!sheet) return [];
-  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: '', raw: false, dateNF: 'yyyy-mm-dd' })
-    .filter((row) => row.some((cell) => String(cell).trim()));
-  if (rows.length < 2) return [];
-  const headers = rows[0].map((item) => normalizeHeader(String(item)));
+function isGtqHeaders(headers: string[]): boolean {
+  return headers.includes('person_vorname') && headers.includes('person_name') && headers.includes('person_kurs_funktion');
+}
+
+function parseGtqRows(rows: string[][], headers: string[], training: Training): ImportRow[] {
   const column = (...names: string[]): number => headers.findIndex((header) => names.includes(header));
   const columns = {
     firstName: column('person_vorname'),

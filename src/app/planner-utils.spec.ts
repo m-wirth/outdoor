@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import * as XLSX from 'xlsx';
 import { PlannerPerson, Training } from './planner.models';
-import { absenceOverlaps, defaultPresence, effectivePeriod, parseGtqWorkbook, parsePlannerCsv, visibleTrainingDates } from './planner-utils';
+import { absenceOverlaps, defaultPresence, effectivePeriod, parsePlannerCsv, visibleTrainingDates } from './planner-utils';
 
 const person: PlannerPerson = {
   id: 'p1', firstName: 'Arti', lastName: 'Muster', birthDate: '2000-12-01', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, nutritionPreferences: [], medicalInformation: '', archived: false
@@ -80,15 +79,13 @@ describe('planner CSV import', () => {
     expect(row.errors.join(' ')).toContain('XYZ');
   });
 
-  it('imports GTQ Excel rows with birthdate duplicate keys and GTQ mappings', () => {
-    const sheet = XLSX.utils.aoa_to_sheet([
+  it('imports GTQ CSV rows with birthdate duplicate keys and GTQ mappings', () => {
+    const csv = [
       ['Person Vorname', 'Person Name', 'Person Geb', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'Person Datenbank::Person Gesundheit Lebensmittel', 'Person Datenbank::Person Gesundheit Medikamente'],
       ['Arti', 'Muster', '2000-12-01', 'm', 'Teilnehmer', 'Wettingen - Outdoor', 'Gemeindezentrum Bethel', 'GLK 2026-1', 'keine', ''],
       ['Mara', 'Frei', '2001-05-06', 'w', 'Scout', '', 'Gemeindezentrum Bethel', 'TLK 2026-1', 'vegan, Laktose', 'Medikament morgens']
-    ]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Tabelle1');
-    const rows = parseGtqWorkbook(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }), training);
+    ].map((row) => row.join(';')).join('\n');
+    const rows = parsePlannerCsv(csv, training);
     expect(rows[0]).toMatchObject({ duplicate: true, valid: false });
     expect(rows[1]).toMatchObject({
       firstName: 'Mara',
