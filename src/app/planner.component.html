@@ -166,6 +166,9 @@
           <input [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Person suchen …" aria-label="Person suchen">
           <select [ngModel]="roleFilter()" (ngModelChange)="roleFilter.set($event)"><option value="">Alle Rollen</option>@for (role of roles; track role) { <option [value]="role">{{ role }}</option> }</select>
           <select [ngModel]="courseFilter()" (ngModelChange)="courseFilter.set($event)"><option value="">Alle Unterkurse</option>@for (course of training.subTrainings; track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select>
+          <select [ngModel]="genderFilter()" (ngModelChange)="genderFilter.set($event)"><option value="">Alle Geschlechter</option>@for (gender of genders; track gender) { <option [value]="gender">{{ gender }}</option> }</select>
+          <select [ngModel]="originFilter()" (ngModelChange)="originFilter.set($event)"><option value="">Intern & extern</option><option value="internal">Intern</option><option value="external">Extern</option></select>
+          <button class="text-action" type="button" (click)="resetMatrixFilters()">Filter zurücksetzen</button>
           <span>{{ sortedFilteredPeople().length }} angezeigt</span>
         </div>
         <div class="matrix-options" aria-label="Matrixspalten anzeigen">
@@ -216,10 +219,43 @@
       <section class="people-view">
         <div class="section-title compact"><div><p class="eyebrow">Stammdaten</p><h3>Personen</h3></div><div class="section-actions"><button class="secondary-action" type="button" (click)="exportParticipantList()">TN-Liste Excel</button><button class="secondary-action" type="button" (click)="importOpen.set(true)">CSV importieren</button><button class="primary-action" type="button" (click)="openPerson()">+ Person</button></div></div>
         <div class="people-table-wrap">
-          <table class="people-table"><thead><tr><th><button class="sort-head plain" type="button" (click)="setPeopleSort('lastName')">Name <span>{{ sortLabel(peopleSort(), 'lastName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('firstName')">Vorname <span>{{ sortLabel(peopleSort(), 'firstName') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('birthDate')">Geburtsdatum <span>{{ sortLabel(peopleSort(), 'birthDate') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('gender')">Geschlecht <span>{{ sortLabel(peopleSort(), 'gender') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('role')">Rolle <span>{{ sortLabel(peopleSort(), 'role') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('subTraining')">Unterkurs <span>{{ sortLabel(peopleSort(), 'subTraining') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('origin')">Herkunft <span>{{ sortLabel(peopleSort(), 'origin') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('expert')">Experte <span>{{ sortLabel(peopleSort(), 'expert') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('nutrition')">Essgewohnheiten <span>{{ sortLabel(peopleSort(), 'nutrition') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('courseMaterials')">Kursunterlagen <span>{{ sortLabel(peopleSort(), 'courseMaterials') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('fieldbed')">Feldbett <span>{{ sortLabel(peopleSort(), 'fieldbed') }}</span></button></th><th><button class="sort-head plain" type="button" (click)="setPeopleSort('medical')">Medizinische Informationen <span>{{ sortLabel(peopleSort(), 'medical') }}</span></button></th><th></th></tr></thead><tbody>
+          <table class="people-table">
+            <thead>
+              <tr>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('lastName')">Name <span>{{ sortLabel(peopleSort(), 'lastName') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('firstName')">Vorname <span>{{ sortLabel(peopleSort(), 'firstName') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('birthDate')">Geburtsdatum <span>{{ sortLabel(peopleSort(), 'birthDate') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('gender')">Geschlecht <span>{{ sortLabel(peopleSort(), 'gender') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('role')">Rolle <span>{{ sortLabel(peopleSort(), 'role') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('subTraining')">Unterkurs <span>{{ sortLabel(peopleSort(), 'subTraining') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('origin')">Herkunft <span>{{ sortLabel(peopleSort(), 'origin') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('expert')">Experte <span>{{ sortLabel(peopleSort(), 'expert') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('nutrition')">Essgewohnheiten <span>{{ sortLabel(peopleSort(), 'nutrition') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('courseMaterials')">Kursunterlagen <span>{{ sortLabel(peopleSort(), 'courseMaterials') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('fieldbed')">Feldbett <span>{{ sortLabel(peopleSort(), 'fieldbed') }}</span></button></th>
+                <th><button class="sort-head plain" type="button" (click)="setPeopleSort('medical')">Medizinische Informationen <span>{{ sortLabel(peopleSort(), 'medical') }}</span></button></th>
+                <th>{{ sortedPeople().length }} angezeigt</th>
+              </tr>
+              <tr class="column-filters">
+                <th><input [ngModel]="peopleLastNameFilter()" (ngModelChange)="peopleLastNameFilter.set($event)" placeholder="Filter"></th>
+                <th><input [ngModel]="peopleFirstNameFilter()" (ngModelChange)="peopleFirstNameFilter.set($event)" placeholder="Filter"></th>
+                <th><input [ngModel]="peopleBirthDateFilter()" (ngModelChange)="peopleBirthDateFilter.set($event)" placeholder="Filter"></th>
+                <th><select [ngModel]="peopleGenderFilter()" (ngModelChange)="peopleGenderFilter.set($event)"><option value="">Alle</option>@for (gender of genders; track gender) { <option [value]="gender">{{ gender }}</option> }</select></th>
+                <th><select [ngModel]="peopleRoleFilter()" (ngModelChange)="peopleRoleFilter.set($event)"><option value="">Alle</option>@for (role of roles; track role) { <option [value]="role">{{ role }}</option> }</select></th>
+                <th><select [ngModel]="peopleCourseFilter()" (ngModelChange)="peopleCourseFilter.set($event)"><option value="">Alle</option>@for (course of training.subTrainings; track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></th>
+                <th><select [ngModel]="peopleOriginFilter()" (ngModelChange)="peopleOriginFilter.set($event)"><option value="">Alle</option><option value="internal">Intern</option><option value="external">Extern</option></select></th>
+                <th><select [ngModel]="peopleExpertFilter()" (ngModelChange)="peopleExpertFilter.set($event)"><option value="">Alle</option><option value="yes">Ja</option><option value="no">Nein</option></select></th>
+                <th><select [ngModel]="peopleNutritionFilter()" (ngModelChange)="peopleNutritionFilter.set($event)"><option value="">Alle</option>@for (preference of nutritionPreferences; track preference) { <option [value]="preference">{{ preference }}</option> }</select></th>
+                <th><select [ngModel]="peopleCourseMaterialsFilter()" (ngModelChange)="peopleCourseMaterialsFilter.set($event)"><option value="">Alle</option>@for (option of courseMaterialOptions; track option) { <option [value]="option">{{ option }}</option> }</select></th>
+                <th><select [ngModel]="peopleFieldbedFilter()" (ngModelChange)="peopleFieldbedFilter.set($event)"><option value="">Alle</option><option value="yes">Ja</option><option value="no">Nein</option></select></th>
+                <th><input [ngModel]="peopleMedicalFilter()" (ngModelChange)="peopleMedicalFilter.set($event)" placeholder="Filter"></th>
+                <th><button class="text-action" type="button" (click)="resetPeopleFilters()">Filter zurücksetzen</button></th>
+              </tr>
+            </thead>
+            <tbody>
             @for (person of sortedPeople(); track person.id) {
               <tr><th>{{ person.lastName }}</th><td>{{ person.firstName }}</td><td>{{ person.birthDate || '–' }}</td><td>{{ person.gender }}</td><td>{{ person.role }}</td><td>{{ subTrainingNameFor(person) }}</td><td>{{ person.external ? 'Extern' : 'Intern' }}</td><td>{{ person.expert ? 'Ja' : 'Nein' }}</td><td>{{ nutritionLabel(person) }}</td><td>{{ courseMaterialLabel(person) }}</td><td>{{ person.fieldbedRequested ? 'Ja' : 'Nein' }}</td><td>{{ person.medicalInformation || '–' }}</td><td><button class="text-action" type="button" (click)="openPerson(person)">Bearbeiten</button><button class="icon-action danger" type="button" (click)="archivePerson(person)" aria-label="Archivieren">×</button></td></tr>
-            } @empty { <tr><td colspan="13" class="no-results">Noch keine Personen. Erfasse sie manuell oder importiere eine CSV-Datei.</td></tr> }
+            } @empty { <tr><td colspan="13" class="no-results">Keine Personen für diese Filter.</td></tr> }
           </tbody></table>
         </div>
       </section>

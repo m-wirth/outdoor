@@ -38,6 +38,8 @@ type PlannerTab = 'dashboard' | 'matrix' | 'people' | 'settings' | 'report';
 type SortDirection = 'asc' | 'desc';
 type MatrixSortKey = 'firstName' | 'lastName' | 'role' | 'subTraining';
 type PeopleSortKey = MatrixSortKey | 'birthDate' | 'gender' | 'origin' | 'expert' | 'nutrition' | 'medical' | 'courseMaterials' | 'fieldbed';
+type OriginFilter = '' | 'internal' | 'external';
+type BooleanFilter = '' | 'yes' | 'no';
 
 interface SortState<T extends string> {
   key: T;
@@ -113,12 +115,18 @@ export class PlannerComponent {
   readonly dates = computed(() => this.activeTraining() ? visibleTrainingDates(this.activeTraining()!) : []);
   readonly activePeople = computed(() => this.activeTraining()?.people.filter((person) => !person.archived) ?? []);
   readonly filteredPeople = computed(() => {
-    const query = this.search().trim().toLocaleLowerCase('de-CH');
+    const query = normalizeFilter(this.search());
     const role = this.roleFilter();
     const course = this.courseFilter();
+    const gender = this.genderFilter();
+    const origin = this.originFilter();
     return this.activePeople().filter((person) => {
-      const name = `${person.firstName} ${person.lastName}`.toLocaleLowerCase('de-CH');
-      return (!query || name.includes(query)) && (!role || person.role === role) && (!course || person.subTrainingId === course);
+      const name = normalizeFilter(`${person.firstName} ${person.lastName}`);
+      return (!query || name.includes(query))
+        && (!role || person.role === role)
+        && (!course || person.subTrainingId === course)
+        && (!gender || person.gender === gender)
+        && (!origin || matchesOrigin(person, origin));
     });
   });
   readonly visiblePeriods = computed(() => this.periods.filter((period) => {
@@ -127,7 +135,33 @@ export class PlannerComponent {
     return period !== 'overnight' || this.showOvernight();
   }));
   readonly sortedFilteredPeople = computed(() => this.sortPeople(this.filteredPeople(), this.matrixSort()));
-  readonly sortedPeople = computed(() => this.sortPeople(this.activePeople(), this.peopleSort()));
+  readonly filteredTablePeople = computed(() => {
+    const lastName = normalizeFilter(this.peopleLastNameFilter());
+    const firstName = normalizeFilter(this.peopleFirstNameFilter());
+    const birthDate = normalizeFilter(this.peopleBirthDateFilter());
+    const gender = this.peopleGenderFilter();
+    const role = this.peopleRoleFilter();
+    const course = this.peopleCourseFilter();
+    const origin = this.peopleOriginFilter();
+    const expert = this.peopleExpertFilter();
+    const nutrition = this.peopleNutritionFilter();
+    const courseMaterials = this.peopleCourseMaterialsFilter();
+    const fieldbed = this.peopleFieldbedFilter();
+    const medical = normalizeFilter(this.peopleMedicalFilter());
+    return this.activePeople().filter((person) => matchesText(person.lastName, lastName)
+      && matchesText(person.firstName, firstName)
+      && matchesText(person.birthDate, birthDate)
+      && (!gender || person.gender === gender)
+      && (!role || person.role === role)
+      && (!course || person.subTrainingId === course)
+      && (!origin || matchesOrigin(person, origin))
+      && (!expert || matchesBoolean(person.expert, expert))
+      && (!nutrition || person.nutritionPreferences.includes(nutrition))
+      && (!courseMaterials || person.courseMaterials === courseMaterials)
+      && (!fieldbed || matchesBoolean(person.fieldbedRequested, fieldbed))
+      && matchesText(person.medicalInformation, medical));
+  });
+  readonly sortedPeople = computed(() => this.sortPeople(this.filteredTablePeople(), this.peopleSort()));
   readonly participants = computed(() => this.activePeople().filter((person) => person.role === 'Teilnehmer'));
   readonly experts = computed(() => this.activePeople().filter((person) => person.expert && this.canBeExpert(person.role)));
   readonly totalNights = computed(() => this.dates().reduce((total, date) => total + this.count(date, 'overnight'), 0));
@@ -149,6 +183,20 @@ export class PlannerComponent {
   readonly search = signal('');
   readonly roleFilter = signal<PlannerRole | ''>('');
   readonly courseFilter = signal('');
+  readonly genderFilter = signal<Gender | ''>('');
+  readonly originFilter = signal<OriginFilter>('');
+  readonly peopleLastNameFilter = signal('');
+  readonly peopleFirstNameFilter = signal('');
+  readonly peopleBirthDateFilter = signal('');
+  readonly peopleGenderFilter = signal<Gender | ''>('');
+  readonly peopleRoleFilter = signal<PlannerRole | ''>('');
+  readonly peopleCourseFilter = signal('');
+  readonly peopleOriginFilter = signal<OriginFilter>('');
+  readonly peopleExpertFilter = signal<BooleanFilter>('');
+  readonly peopleNutritionFilter = signal<NutritionPreference | ''>('');
+  readonly peopleCourseMaterialsFilter = signal<CourseMaterialOption | ''>('');
+  readonly peopleFieldbedFilter = signal<BooleanFilter>('');
+  readonly peopleMedicalFilter = signal('');
   readonly showMeals = signal(true);
   readonly showDaytimes = signal(true);
   readonly showOvernight = signal(true);
@@ -411,6 +459,29 @@ export class PlannerComponent {
     this.peopleSort.update((current) => nextSort(current, key));
   }
 
+  resetMatrixFilters(): void {
+    this.search.set('');
+    this.roleFilter.set('');
+    this.courseFilter.set('');
+    this.genderFilter.set('');
+    this.originFilter.set('');
+  }
+
+  resetPeopleFilters(): void {
+    this.peopleLastNameFilter.set('');
+    this.peopleFirstNameFilter.set('');
+    this.peopleBirthDateFilter.set('');
+    this.peopleGenderFilter.set('');
+    this.peopleRoleFilter.set('');
+    this.peopleCourseFilter.set('');
+    this.peopleOriginFilter.set('');
+    this.peopleExpertFilter.set('');
+    this.peopleNutritionFilter.set('');
+    this.peopleCourseMaterialsFilter.set('');
+    this.peopleFieldbedFilter.set('');
+    this.peopleMedicalFilter.set('');
+  }
+
   sortLabel<T extends string>(state: SortState<T>, key: T): string {
     if (state.key !== key) return '↕';
     return state.direction === 'asc' ? '↑' : '↓';
@@ -658,6 +729,24 @@ function genderShort(gender: Gender): string {
 
 function nextSort<T extends string>(current: SortState<T>, key: T): SortState<T> {
   return { key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' };
+}
+
+function normalizeFilter(value: string): string {
+  return value.trim().toLocaleLowerCase('de-CH').normalize('NFKD').replace(/\p{Diacritic}/gu, '');
+}
+
+function matchesText(value: string, filter: string): boolean {
+  return !filter || normalizeFilter(value).includes(filter);
+}
+
+function matchesOrigin(person: PlannerPerson, filter: OriginFilter): boolean {
+  if (!filter) return true;
+  return filter === 'external' ? person.external : !person.external;
+}
+
+function matchesBoolean(value: boolean, filter: BooleanFilter): boolean {
+  if (!filter) return true;
+  return filter === 'yes' ? value : !value;
 }
 
 function compareText(left: string, right: string, direction: SortDirection): number {
