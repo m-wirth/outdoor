@@ -37,7 +37,7 @@ import { downloadParticipantListXlsx } from './xlsx-export';
 type PlannerTab = 'dashboard' | 'matrix' | 'people' | 'settings' | 'report';
 type SortDirection = 'asc' | 'desc';
 type MatrixSortKey = 'firstName' | 'lastName' | 'role' | 'subTraining';
-type PeopleSortKey = MatrixSortKey | 'birthDate' | 'gender' | 'origin' | 'expert' | 'nutrition' | 'medical' | 'courseMaterials' | 'fieldbed';
+type PeopleSortKey = MatrixSortKey | 'birthDate' | 'gender' | 'origin' | 'expert' | 'nutrition' | 'medical' | 'courseMaterials' | 'fieldbed' | 'additional';
 type OriginFilter = '' | 'internal' | 'external';
 type BooleanFilter = '' | 'yes' | 'no';
 
@@ -84,7 +84,8 @@ const EMPTY_PERSON: PersonDraft = {
   email: '',
   rrNumber: '',
   rrStapoName: '',
-  courseCode: ''
+  courseCode: '',
+  additionalInformation: ''
 };
 
 @Component({
@@ -148,6 +149,7 @@ export class PlannerComponent {
     const courseMaterials = this.peopleCourseMaterialsFilter();
     const fieldbed = this.peopleFieldbedFilter();
     const medical = normalizeFilter(this.peopleMedicalFilter());
+    const additional = normalizeFilter(this.peopleAdditionalFilter());
     return this.activePeople().filter((person) => matchesText(person.lastName, lastName)
       && matchesText(person.firstName, firstName)
       && matchesText(person.birthDate, birthDate)
@@ -159,7 +161,8 @@ export class PlannerComponent {
       && (!nutrition || person.nutritionPreferences.includes(nutrition))
       && (!courseMaterials || person.courseMaterials === courseMaterials)
       && (!fieldbed || matchesBoolean(person.fieldbedRequested, fieldbed))
-      && matchesText(person.medicalInformation, medical));
+      && matchesText(person.medicalInformation, medical)
+      && matchesText(person.additionalInformation, additional));
   });
   readonly sortedPeople = computed(() => this.sortPeople(this.filteredTablePeople(), this.peopleSort()));
   readonly participants = computed(() => this.activePeople().filter((person) => person.role === 'Teilnehmer'));
@@ -197,6 +200,7 @@ export class PlannerComponent {
   readonly peopleCourseMaterialsFilter = signal<CourseMaterialOption | ''>('');
   readonly peopleFieldbedFilter = signal<BooleanFilter>('');
   readonly peopleMedicalFilter = signal('');
+  readonly peopleAdditionalFilter = signal('');
   readonly showMeals = signal(true);
   readonly showDaytimes = signal(true);
   readonly showOvernight = signal(true);
@@ -324,7 +328,8 @@ export class PlannerComponent {
       email: person.email,
       rrNumber: person.rrNumber,
       rrStapoName: person.rrStapoName,
-      courseCode: person.courseCode
+      courseCode: person.courseCode,
+      additionalInformation: person.additionalInformation
     } : { ...EMPTY_PERSON, nutritionPreferences: [] };
     this.personEditorOpen.set(true);
   }
@@ -350,7 +355,8 @@ export class PlannerComponent {
       email: this.personDraft.email.trim(),
       rrNumber: this.personDraft.rrNumber.trim(),
       rrStapoName: this.personDraft.rrStapoName.trim(),
-      courseCode: this.personDraft.courseCode.trim()
+      courseCode: this.personDraft.courseCode.trim(),
+      additionalInformation: this.personDraft.additionalInformation.trim()
     };
     if (!draft.firstName || !draft.lastName) {
       this.error.set('Vorname und Name sind erforderlich.');
@@ -480,6 +486,7 @@ export class PlannerComponent {
     this.peopleCourseMaterialsFilter.set('');
     this.peopleFieldbedFilter.set('');
     this.peopleMedicalFilter.set('');
+    this.peopleAdditionalFilter.set('');
   }
 
   sortLabel<T extends string>(state: SortState<T>, key: T): string {
@@ -582,7 +589,7 @@ export class PlannerComponent {
     const training = this.activeTraining();
     if (!training) return;
     const rows = this.importRows().filter((row) => row.valid);
-    const result = this.store.importPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation, courseMaterials, fieldbedRequested, address, streetNumber, postalCode, city, privatePhone, mobilePhone, email, rrNumber, rrStapoName, courseCode }) => ({
+    const result = this.store.importPeople(training.id, rows.map(({ firstName, lastName, birthDate, gender, role, subTrainingId, external, expert, nutritionPreferences, medicalInformation, courseMaterials, fieldbedRequested, address, streetNumber, postalCode, city, privatePhone, mobilePhone, email, rrNumber, rrStapoName, courseCode, additionalInformation }) => ({
       firstName,
       lastName,
       birthDate,
@@ -604,7 +611,8 @@ export class PlannerComponent {
       email,
       rrNumber,
       rrStapoName,
-      courseCode
+      courseCode,
+      additionalInformation
     })));
     this.importOpen.set(false);
     this.importRows.set([]);
@@ -612,7 +620,7 @@ export class PlannerComponent {
   }
 
   downloadTemplate(): void {
-    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen;kursunterlagen;feldbett;adresse;nr;plz;wohnort;tel_p;handy;mail;rr_nr;rr_stapo_name;kurs_kuerzel\n', 'text/csv;charset=utf-8');
+    downloadText('personen-planer-vorlage.csv', '\uFEFFfirst_name;last_name;birth_date;gender;role;sub_training;external;expert;essgewohnheiten;medizinische_informationen;kursunterlagen;feldbett;adresse;nr;plz;wohnort;tel_p;handy;mail;rr_nr;rr_stapo_name;kurs_kuerzel;zusaetzliche_informationen\n', 'text/csv;charset=utf-8');
   }
 
   exportParticipantList(): void {
@@ -708,6 +716,7 @@ export class PlannerComponent {
     if (key === 'medical') return person.medicalInformation;
     if (key === 'courseMaterials') return person.courseMaterials ?? '';
     if (key === 'fieldbed') return person.fieldbedRequested ? 'Ja' : 'Nein';
+    if (key === 'additional') return person.additionalInformation;
     return person[key];
   }
 }

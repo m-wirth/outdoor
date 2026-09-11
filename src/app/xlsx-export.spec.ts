@@ -26,6 +26,7 @@ const basePerson: PlannerPerson = {
   rrNumber: '20',
   rrStapoName: 'Huttwil (Heilsarmee) - Outdoor',
   courseCode: 'GLK 2026-1',
+  additionalInformation: '',
   archived: false
 };
 

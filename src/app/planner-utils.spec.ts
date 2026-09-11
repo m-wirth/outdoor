@@ -4,7 +4,7 @@ import { mergeMissingPersonData } from './planner-store.service';
 import { absenceOverlaps, defaultPresence, effectivePeriod, parsePlannerCsv, visibleTrainingDates } from './planner-utils';
 
 const person: PlannerPerson = {
-  id: 'p1', firstName: 'Arti', lastName: 'Muster', birthDate: '2000-12-01', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, nutritionPreferences: [], medicalInformation: '', courseMaterials: null, fieldbedRequested: false, address: '', streetNumber: '', postalCode: '', city: '', privatePhone: '', mobilePhone: '', email: '', rrNumber: '', rrStapoName: '', courseCode: '', archived: false
+  id: 'p1', firstName: 'Arti', lastName: 'Muster', birthDate: '2000-12-01', gender: 'Männlich', role: 'Teilnehmer', subTrainingId: 'glk', external: false, expert: false, nutritionPreferences: [], medicalInformation: '', courseMaterials: null, fieldbedRequested: false, address: '', streetNumber: '', postalCode: '', city: '', privatePhone: '', mobilePhone: '', email: '', rrNumber: '', rrStapoName: '', courseCode: '', additionalInformation: '', archived: false
 };
 
 const training: Training = {
@@ -117,6 +117,53 @@ describe('planner CSV import', () => {
     });
   });
 
+  it('imports the MLK export format and keeps important unmatched fields as additional information', () => {
+    const mlkTraining = {
+      ...training,
+      subTrainings: [...training.subTrainings, { id: 'mlk', name: 'MLK', instructors: [] }],
+      people: []
+    };
+    const csv = [
+      [
+        'Kurs Anmelde Erstellung Datum', 'php_ahv_nummer', 'Person Vorname', 'Person Name', 'Person Adresse', 'Person Hausnummer', 'Person PLZ', 'Person Wohnort', 'Person Geb', 'Person Tel P', 'Person Tel G', 'Person Handy', 'Person Datenbank::Person Notfall Telefon', 'Person Tel Notfall', 'person_mail', 'Person Mail Pastor', 'Person Mail Hauptleiter', 'Person Mail Eltern', 'Person Geschlecht', 'Person Kurs Funktion', 'Person RR Stapo Nr', 'Person RR Stapo Name', 'Person Gemeinde Name', 'kurs_kuerzel', 'php_kurs_information_eins', 'Person Datenbank::Person Gesundheit Lebensmittel', 'php_kurs_lebensmittel', 'KursRechnungen::fk_KursLeistungenDreiName', 'KursRechnungen::fk_KursLeistungenVierName', 'Person Datenbank::Person Gesundheit Medikamente', 'Person Datenbank::Person Notfall Name', 'Person Datenbank::Person Notfall Vorname', 'Person Datenbank::Person Notfall Bezugsperson', 'Person Datenbank::Person Notfall Mobile', 'Person Datenbank::Person Notfall EMail', 'RR Regionen::RR Delegation Eurocamp 2020', 'RR Regionen Anmeldung::RR Distrikt', 'php_kurs_zimmerpartner', 'Kurs Start Datum Jahr', 'Kurs Belegungsname', 'BelegungBelegungZimmerLayout::ZimmerBeschreibung', 'KDBTeilnehmerCheckedIn', 'KDBTeilnehmerKursAnmeldeStatus'
+      ],
+      [
+        '28.10.2025', '756.1234.1234.12', 'Max', 'Muster', 'Musterstrasse', '12', '1234', 'Demohausen', '13.12.2000', '', '062 000 00 00', '', '079 111 11 11', '079 222 22 22', 'muster.max@mail.com', 'pastor@example.test', '', 'eltern@example.test', 'm', 'Event HLT', '18', 'Aarau - Outdoor', 'MOMENTUM church Aarau', 'MLK 2026-1', 'Kommt später', 'glutenfrei', 'kein Schwein', '1. Ich organisiere mich selber (CHF 0)', '4. Ich bin Leiter und erwerbe kein Brevet/Zertifikat (Fr. 0.00)', 'Medikament morgens', 'Meier', 'Anna', 'Mutter', '079 333 33 33', 'anna@example.test', 'Mittelland-West', 'Mittelland West', 'Sam', '2026', 'MLK2026', 'Zimmer 2', '1', 'Angemeldet'
+      ]
+    ].map((row) => row.join(';')).join('\n');
+    const [row] = parsePlannerCsv(csv, mlkTraining);
+    expect(row).toMatchObject({
+      firstName: 'Max',
+      lastName: 'Muster',
+      birthDate: '2000-12-13',
+      gender: 'Männlich',
+      role: 'Event Hauptleiter',
+      subTrainingId: 'mlk',
+      external: false,
+      expert: false,
+      nutritionPreferences: ['Glutenfrei'],
+      medicalInformation: 'Medikament morgens',
+      fieldbedRequested: false,
+      courseMaterials: null,
+      address: 'Musterstrasse',
+      streetNumber: '12',
+      postalCode: '1234',
+      city: 'Demohausen',
+      privatePhone: '',
+      mobilePhone: '',
+      email: 'muster.max@mail.com',
+      rrNumber: '18',
+      rrStapoName: 'Aarau - Outdoor',
+      courseCode: 'MLK 2026-1',
+      valid: true
+    });
+    expect(row.additionalInformation).toContain('Tel G: 062 000 00 00');
+    expect(row.additionalInformation).toContain('Notfall Name: Anna Meier');
+    expect(row.additionalInformation).toContain('Leistung 4: 4. Ich bin Leiter und erwerbe kein Brevet/Zertifikat');
+    expect(row.additionalInformation).toContain('Region: Mittelland-West');
+    expect(row.additionalInformation).toContain('Anmeldestatus: Angemeldet');
+  });
+
   it('merges duplicate import data without overwriting existing fields', () => {
     const existing: PlannerPerson = {
       ...person,
@@ -138,7 +185,8 @@ describe('planner CSV import', () => {
       email: '',
       rrNumber: '',
       rrStapoName: '',
-      courseCode: ''
+      courseCode: '',
+      additionalInformation: ''
     };
     const merged = mergeMissingPersonData(existing, {
       firstName: 'Arti',
@@ -162,7 +210,8 @@ describe('planner CSV import', () => {
       email: 'arti@example.test',
       rrNumber: '20',
       rrStapoName: 'Huttwil - Outdoor',
-      courseCode: 'GLK 2026-1'
+      courseCode: 'GLK 2026-1',
+      additionalInformation: 'Notfall Name: Beispiel'
     });
     expect(merged).toMatchObject({
       birthDate: '2005-01-02',
@@ -184,7 +233,8 @@ describe('planner CSV import', () => {
       email: 'arti@example.test',
       rrNumber: '20',
       rrStapoName: 'Huttwil - Outdoor',
-      courseCode: 'GLK 2026-1'
+      courseCode: 'GLK 2026-1',
+      additionalInformation: 'Notfall Name: Beispiel'
     });
   });
 });

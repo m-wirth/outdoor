@@ -72,6 +72,7 @@ export interface PlannerPerson {
   rrNumber: string;
   rrStapoName: string;
   courseCode: string;
+  additionalInformation: string;
   archived: boolean;
 }
 
@@ -136,6 +137,7 @@ export interface PersonDraft {
   rrNumber: string;
   rrStapoName: string;
   courseCode: string;
+  additionalInformation: string;
 }
 
 export interface ImportRow extends PersonDraft {

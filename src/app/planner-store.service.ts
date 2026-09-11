@@ -239,7 +239,8 @@ function normalizeState(state: PlannerState): PlannerState {
         email: String(person.email ?? ''),
         rrNumber: String(person.rrNumber ?? ''),
         rrStapoName: String(person.rrStapoName ?? ''),
-        courseCode: String(person.courseCode ?? '')
+        courseCode: String(person.courseCode ?? ''),
+        additionalInformation: String(person.additionalInformation ?? '')
       }))
     }))
   };
@@ -264,7 +265,8 @@ function normalizePersonDraft(draft: PersonDraft): PersonDraft {
     email: draft.email.trim(),
     rrNumber: draft.rrNumber.trim(),
     rrStapoName: draft.rrStapoName.trim(),
-    courseCode: draft.courseCode.trim()
+    courseCode: draft.courseCode.trim(),
+    additionalInformation: draft.additionalInformation.trim()
   };
 }
 
@@ -288,7 +290,8 @@ export function mergeMissingPersonData(person: PlannerPerson, draft: PersonDraft
     email: person.email || draft.email,
     rrNumber: person.rrNumber || draft.rrNumber,
     rrStapoName: person.rrStapoName || draft.rrStapoName,
-    courseCode: person.courseCode || draft.courseCode
+    courseCode: person.courseCode || draft.courseCode,
+    additionalInformation: person.additionalInformation || draft.additionalInformation
   };
   return hasPersonChanged(person, merged) ? merged : person;
 }
@@ -310,6 +313,7 @@ function hasPersonChanged(before: PlannerPerson, after: PlannerPerson): boolean 
     || before.rrNumber !== after.rrNumber
     || before.rrStapoName !== after.rrStapoName
     || before.courseCode !== after.courseCode
+    || before.additionalInformation !== after.additionalInformation
     || before.nutritionPreferences.length !== after.nutritionPreferences.length
     || before.nutritionPreferences.some((preference, index) => preference !== after.nutritionPreferences[index]);
 }

@@ -123,7 +123,8 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     email: column('email', 'mail', 'e_mail', 'person_mail'),
     rrNumber: column('rr_number', 'rr_nr', 'rr_nr.', 'person_rr_stapo_nr'),
     rrStapoName: column('rr_stapo_name', 'rr_stapo', 'person_rr_stapo_name'),
-    courseCode: column('course_code', 'kurs_kuerzel', 'kurs_kurzel')
+    courseCode: column('course_code', 'kurs_kuerzel', 'kurs_kurzel'),
+    additionalInformation: column('additional_information', 'zusaetzliche_informationen', 'zusatzinformationen', 'notizen', 'notes')
   };
   if (columns.courseMaterials < 0) columns.courseMaterials = fuzzyColumn('kursunterlagen', 'kursunterlage');
   if (columns.fieldbedRequested < 0) columns.fieldbedRequested = fuzzyColumn('feldbett');
@@ -154,6 +155,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
     const rrNumber = value(row, columns.rrNumber);
     const rrStapoName = value(row, columns.rrStapoName);
     const courseCode = value(row, columns.courseCode);
+    const additionalInformation = value(row, columns.additionalInformation);
     const errors: string[] = [];
     if (!firstName) errors.push('Vorname fehlt.');
     if (!lastName) errors.push('Name fehlt.');
@@ -188,6 +190,7 @@ export function parsePlannerCsv(text: string, training: Training): ImportRow[] {
       rrNumber,
       rrStapoName,
       courseCode,
+      additionalInformation,
       duplicate,
       valid: errors.length === 0,
       errors
@@ -224,7 +227,37 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
     email: column('person_mail'),
     rrNumber: column('person_rr_stapo_nr'),
     rrStapoName: column('person_rr_stapo_name'),
-    courseCode: column('kurs_kuerzel')
+    courseCode: column('kurs_kuerzel'),
+    telBusiness: column('person_tel_g'),
+    databaseEmergencyPhone: column('person_datenbank::person_notfall_telefon'),
+    emergencyPhone: column('person_tel_notfall'),
+    pastorEmail: column('person_mail_pastor'),
+    mainInstructorEmail: column('person_mail_hauptleiter'),
+    parentsEmail: column('person_mail_eltern'),
+    courseInfoOne: column('php_kurs_information_eins'),
+    courseInfoTwo: column('php_kurs_information_zwei'),
+    courseInfoThree: column('php_kurs_information_drei'),
+    courseInfoFour: column('php_kurs_information_vier'),
+    courseInfoFive: column('php_kurs_information_fuenf'),
+    courseInfoSix: column('php_kurs_information_sechs'),
+    courseFood: column('php_kurs_lebensmittel'),
+    serviceOne: column('kursrechnungen::fk_kursleistungeneinsname'),
+    serviceTwo: column('kursrechnungen::fk_kursleistungenzweiname'),
+    serviceFive: column('kursrechnungen::fk_kursleistungenfuenfname'),
+    serviceSix: column('kursrechnungen::fk_kursleistungensechsname'),
+    emergencyLastName: column('person_datenbank::person_notfall_name'),
+    emergencyFirstName: column('person_datenbank::person_notfall_vorname'),
+    emergencyRelation: column('person_datenbank::person_notfall_bezugsperson'),
+    emergencyMobile: column('person_datenbank::person_notfall_mobile'),
+    emergencyEmail: column('person_datenbank::person_notfall_email'),
+    region: column('rr_regionen::rr_delegation_eurocamp_2020'),
+    district: column('rr_regionen_anmeldung::rr_distrikt'),
+    roomPartner: column('php_kurs_zimmerpartner'),
+    courseStartYear: column('kurs_start_datum_jahr'),
+    occupancyName: column('kurs_belegungsname'),
+    roomDescription: column('belegungbelegungzimmerlayout::zimmerbeschreibung'),
+    checkedIn: column('kdbteilnehmercheckedin'),
+    registrationStatus: column('kdbteilnehmerkursanmeldestatus')
   };
   if (columns.courseMaterials < 0) columns.courseMaterials = fuzzyColumn('kursunterlagen', 'kursunterlage');
   if (columns.fieldbedRequested < 0) columns.fieldbedRequested = fuzzyColumn('feldbett');
@@ -244,6 +277,11 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
     const stapoName = value(row, columns.stapoName);
     const congregationName = value(row, columns.congregationName);
     const courseCode = value(row, columns.courseCode);
+    const nutritionRaw = value(row, columns.nutrition);
+    const medicalInformation = value(row, columns.medical);
+    const courseMaterials = parseCourseMaterials(value(row, columns.courseMaterials));
+    const fieldbedRequested = parseBoolean(value(row, columns.fieldbedRequested));
+    const additionalInformation = gtqAdditionalInformation(row, columns, nutritionRaw, courseMaterials);
     const errors: string[] = [];
     if (!firstName) errors.push('Vorname fehlt.');
     if (!lastName) errors.push('Name fehlt.');
@@ -265,10 +303,10 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
       subTrainingId: subTraining?.id ?? null,
       external: !stapoName || !congregationName,
       expert: false,
-      nutritionPreferences: parseNutritionPreferences(value(row, columns.nutrition)),
-      medicalInformation: value(row, columns.medical),
-      courseMaterials: parseCourseMaterials(value(row, columns.courseMaterials)),
-      fieldbedRequested: parseBoolean(value(row, columns.fieldbedRequested)),
+      nutritionPreferences: parseNutritionPreferences(nutritionRaw),
+      medicalInformation,
+      courseMaterials,
+      fieldbedRequested,
       address: value(row, columns.address),
       streetNumber: value(row, columns.streetNumber),
       postalCode: value(row, columns.postalCode),
@@ -279,11 +317,69 @@ function parseGtqRows(rows: string[][], headers: string[], training: Training): 
       rrNumber: value(row, columns.rrNumber),
       rrStapoName: value(row, columns.rrStapoName),
       courseCode,
+      additionalInformation,
       duplicate,
       valid: errors.length === 0,
       errors
     };
   });
+}
+
+function gtqAdditionalInformation(
+  row: string[],
+  columns: Record<string, number>,
+  nutritionRaw: string,
+  courseMaterials: CourseMaterialOption | null
+): string {
+  const entries: Array<[string, string]> = [
+    ['Tel G', value(row, columns['telBusiness'])],
+    ['Notfall Telefon Datenbank', value(row, columns['databaseEmergencyPhone'])],
+    ['Notfall Telefon', value(row, columns['emergencyPhone'])],
+    ['Mail Pastor', value(row, columns['pastorEmail'])],
+    ['Mail Hauptleiter', value(row, columns['mainInstructorEmail'])],
+    ['Mail Eltern', value(row, columns['parentsEmail'])],
+    ['Kursinfo 1', value(row, columns['courseInfoOne'])],
+    ['Kursinfo 2', value(row, columns['courseInfoTwo'])],
+    ['Kursinfo 3', value(row, columns['courseInfoThree'])],
+    ['Kursinfo 4', value(row, columns['courseInfoFour'])],
+    ['Kursinfo 5', value(row, columns['courseInfoFive'])],
+    ['Kursinfo 6', value(row, columns['courseInfoSix'])],
+    ['Lebensmittel-Hinweis', nutritionRaw],
+    ['Kurs-Lebensmittel', value(row, columns['courseFood'])],
+    ['Leistung 1', value(row, columns['serviceOne'])],
+    ['Leistung 2', value(row, columns['serviceTwo'])],
+    ['Leistung 5', value(row, columns['serviceFive'])],
+    ['Leistung 6', value(row, columns['serviceSix'])],
+    ['Notfall Name', fullName(value(row, columns['emergencyFirstName']), value(row, columns['emergencyLastName']))],
+    ['Notfall Bezug', value(row, columns['emergencyRelation'])],
+    ['Notfall Mobile', value(row, columns['emergencyMobile'])],
+    ['Notfall E-Mail', value(row, columns['emergencyEmail'])],
+    ['Region', value(row, columns['region'])],
+    ['Distrikt', value(row, columns['district'])],
+    ['Zimmerpartner', value(row, columns['roomPartner'])],
+    ['Kursjahr', value(row, columns['courseStartYear'])],
+    ['Belegung', value(row, columns['occupancyName'])],
+    ['Zimmer', value(row, columns['roomDescription'])],
+    ['Check-in', value(row, columns['checkedIn'])],
+    ['Anmeldestatus', value(row, columns['registrationStatus'])]
+  ];
+  const rawCourseMaterials = value(row, columns['courseMaterials']);
+  if (rawCourseMaterials && !courseMaterials) entries.push(['Leistung 4', rawCourseMaterials]);
+  const rawFieldbed = value(row, columns['fieldbedRequested']);
+  if (rawFieldbed && !parseBoolean(rawFieldbed) && !normalizeOptionKey(rawFieldbed).includes('organisiere_mich_selber')) entries.push(['Leistung 3', rawFieldbed]);
+  return compactAdditionalInformation(entries);
+}
+
+function compactAdditionalInformation(entries: Array<[string, string]>): string {
+  return entries
+    .map(([label, raw]) => [label, raw.trim()] as const)
+    .filter(([, raw]) => !!raw && !['-', 'keine', 'kein', 'nein', '0'].includes(normalizeOptionKey(raw)))
+    .map(([label, raw]) => `${label}: ${raw}`)
+    .join('\n');
+}
+
+function fullName(firstName: string, lastName: string): string {
+  return `${firstName} ${lastName}`.trim();
 }
 
 function parseCourseMaterials(value: string): CourseMaterialOption | null {
@@ -404,7 +500,11 @@ function parseRole(value: string): PlannerRole | null {
   const normalized = value.trim().toLocaleLowerCase('de-CH');
   const aliases: Record<string, PlannerRole> = {
     'event hauptleiter': 'Event Hauptleiter',
+    'event hlt': 'Event Hauptleiter',
+    'hlt': 'Event Hauptleiter',
     'event leiter': 'Event Leiter',
+    'event lt': 'Event Leiter',
+    'lt': 'Event Leiter',
     'leiter': 'Event Leiter',
     'küche': 'Küche',
     'kuche': 'Küche',
@@ -424,7 +524,11 @@ function parseGtqRole(value: string): PlannerRole | null {
   const normalized = value.trim().toLocaleLowerCase('de-CH');
   const aliases: Record<string, PlannerRole> = {
     'event leiter': 'Event Leiter',
+    'event lt': 'Event Leiter',
+    'lt': 'Event Leiter',
     'event hauptleiter': 'Event Hauptleiter',
+    'event hlt': 'Event Hauptleiter',
+    'hlt': 'Event Hauptleiter',
     'teilnehmer': 'Teilnehmer',
     'küche': 'Küche',
     'kuche': 'Küche',
