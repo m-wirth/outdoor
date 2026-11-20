@@ -1,5 +1,6 @@
 import { FRAMEWORK_BY_ID } from './course-planner.data';
 import {
+  Course,
   CoursePlannerState,
   EMPTY_COURSE_PLANNER_STATE,
   GoalReference,
@@ -7,7 +8,8 @@ import {
   Lesson,
   LessonPlacement,
   PersonalPlannerFile,
-  PersonalPlannerTraining
+  PersonalPlannerTraining,
+  TrainingEvent
 } from './course-planner.models';
 
 export interface ImportResult {
@@ -41,6 +43,13 @@ export function datesBetween(startDate: string, endDate: string): string[] {
     cursor.setDate(cursor.getDate() + 1);
   }
   return dates;
+}
+
+export function courseWithinEvent(
+  course: Pick<Course, 'startDate' | 'endDate'>,
+  event: Pick<TrainingEvent, 'startDate' | 'endDate'>
+): boolean {
+  return course.startDate >= event.startDate && course.endDate <= event.endDate && course.endDate >= course.startDate;
 }
 
 export function localDate(date: Date): string {

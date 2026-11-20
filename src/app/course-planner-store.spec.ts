@@ -24,6 +24,15 @@ describe('CoursePlannerStore', () => {
     expect(store.state().placements[0]).toMatchObject({ id: placement.id, courseId: tlk.id, startTime: '09:15' });
   });
 
+  it('verhindert Kursdaten ausserhalb der Kursveranstaltung', () => {
+    const store = new CoursePlannerStore();
+    const event = store.createTrainingEvent({ name: 'GTQ', startDate: '2026-10-03', endDate: '2026-10-10', mainInstructor: '' });
+    expect(() => store.createCourse({ trainingEventId: event.id, name: 'Zu lang', startDate: '2026-10-02', endDate: '2026-10-10', location: '', frameworkId: undefined })).toThrow('innerhalb');
+    const course = store.createCourse({ trainingEventId: event.id, name: 'GLK', startDate: event.startDate, endDate: event.endDate, location: '', frameworkId: undefined });
+    expect(() => store.updateCourse(course.id, { endDate: '2026-10-11' })).toThrow('innerhalb');
+    expect(() => store.updateTrainingEvent(event.id, { endDate: '2026-10-09' })).toThrow('ausserhalb');
+  });
+
   it('dupliziert eine Lektion als unabhängigen Inhalt am gleichen Termin', () => {
     const store = new CoursePlannerStore();
     const event = store.createTrainingEvent({ name: 'GTQ', startDate: '2026-10-03', endDate: '2026-10-10', mainInstructor: '' });

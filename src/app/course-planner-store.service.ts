@@ -11,6 +11,7 @@ import {
   TrainingEvent
 } from './course-planner.models';
 import {
+  courseWithinEvent,
   importPersonalPlanner,
   ImportResult,
   mergeCoursePlannerStates,
@@ -42,6 +43,12 @@ export class CoursePlannerStore {
   }
 
   updateTrainingEvent(eventId: string, patch: Partial<Pick<TrainingEvent, 'name' | 'startDate' | 'endDate' | 'mainInstructor'>>): void {
+    const current = this.state().trainingEvents.find((item) => item.id === eventId);
+    if (current) {
+      const next = { ...current, ...patch };
+      const invalid = this.state().courses.some((course) => course.trainingEventId === eventId && !courseWithinEvent(course, next));
+      if (invalid) throw new Error('Mindestens ein Kurs liegt ausserhalb des neuen Veranstaltungszeitraums.');
+    }
     this.change((state) => {
       const event = state.trainingEvents.find((item) => item.id === eventId);
       if (event) Object.assign(event, patch, { updatedAt: new Date().toISOString() });
@@ -59,6 +66,8 @@ export class CoursePlannerStore {
   }
 
   createCourse(input: Pick<Course, 'trainingEventId' | 'name' | 'startDate' | 'endDate' | 'location' | 'frameworkId'>): Course {
+    const event = this.state().trainingEvents.find((item) => item.id === input.trainingEventId);
+    if (!event || !courseWithinEvent(input, event)) throw new Error('Der Kurs muss vollständig innerhalb der Kursveranstaltung liegen.');
     const now = new Date().toISOString();
     const course: Course = { ...input, id: uid('course'), createdAt: now, updatedAt: now };
     this.change((state) => state.courses.push(course));
@@ -66,6 +75,9 @@ export class CoursePlannerStore {
   }
 
   updateCourse(courseId: string, patch: Partial<Pick<Course, 'name' | 'startDate' | 'endDate' | 'location' | 'frameworkId'>>): void {
+    const current = this.state().courses.find((item) => item.id === courseId);
+    const event = current ? this.state().trainingEvents.find((item) => item.id === current.trainingEventId) : undefined;
+    if (current && event && !courseWithinEvent({ ...current, ...patch }, event)) throw new Error('Der Kurs muss vollständig innerhalb der Kursveranstaltung liegen.');
     this.change((state) => {
       const course = state.courses.find((item) => item.id === courseId);
       if (course) Object.assign(course, patch, { updatedAt: new Date().toISOString() });

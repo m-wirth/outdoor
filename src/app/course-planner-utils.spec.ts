@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EMPTY_COURSE_PLANNER_STATE, Lesson, LessonPlacement } from './course-planner.models';
 import {
   assignPlacementLanes,
+  courseWithinEvent,
   courseGoalCoverage,
   datesBetween,
   importPersonalPlanner,
@@ -62,6 +63,12 @@ describe('Personalplaner-Import', () => {
 });
 
 describe('Kursplaner-Berechnungen', () => {
+  it('begrenzt parallele Kurse auf den Zeitraum der Kursveranstaltung', () => {
+    const event = { startDate: '2026-10-03', endDate: '2026-10-10' };
+    expect(courseWithinEvent({ startDate: '2026-10-03', endDate: '2026-10-10' }, event)).toBe(true);
+    expect(courseWithinEvent({ startDate: '2026-10-02', endDate: '2026-10-10' }, event)).toBe(false);
+    expect(courseWithinEvent({ startDate: '2026-10-03', endDate: '2026-10-11' }, event)).toBe(false);
+  });
   it('behandelt den Zeitraum inklusive Start- und Enddatum', () => {
     expect(datesBetween('2026-10-03', '2026-10-05')).toEqual(['2026-10-03', '2026-10-04', '2026-10-05']);
   });

@@ -81,11 +81,18 @@
               @for (event of state().trainingEvents; track event.id) { <option [value]="event.id">{{ event.name }}</option> }
             </select>
           </div>
+          <details class="course-filter">
+            <summary>{{ courseFilterLabel() }}</summary>
+            <div class="course-filter-menu">
+              <header><strong>Kurse einblenden</strong><span><button type="button" (click)="showAllCourses()">Alle</button><button type="button" (click)="hideAllCourses()">Keine</button></span></header>
+              @for (course of activeCourses(); track course.id) { <label><input type="checkbox" [checked]="isCourseVisible(course.id)" (change)="toggleCourseVisibility(course.id)"><span><strong>{{ course.name }}</strong><small>{{ course.location || 'Ort offen' }}</small></span></label> }
+            </div>
+          </details>
           <div class="focus-control">
             <button type="button" [class.active]="!focusedDate()" (click)="focusedDate.set('')">Alle Tage</button>
             @for (date of eventDates(); track date) { <button type="button" [class.active]="focusedDate() === date" (click)="focusedDate.set(date)">{{ dateLabel(date, { weekday: 'short', day: '2-digit' }) }}</button> }
           </div>
-          <div class="print-control"><select aria-label="Druckumfang" [ngModel]="printCourseId()" (ngModelChange)="printCourseId.set($event)"><option value="">Gesamte Veranstaltung</option>@for (course of activeCourses(); track course.id) { <option [value]="course.id">Nur {{ course.name }}</option> }</select><button class="secondary" type="button" (click)="printProgram()">Drucken / PDF</button></div>
+          <div class="print-control"><button class="secondary" type="button" [disabled]="!programCourses().length" (click)="printProgram()">Drucken / PDF</button></div>
         </div>
 
         <div class="program-layout">
@@ -109,10 +116,10 @@
               <div class="schedule-head">
                 <div class="time-corner">Zeit</div>
                 @for (date of visibleDates(); track date) {
-                  <div class="day-head" [style.width.px]="activeCourses().length * 220">
+                  <div class="day-head" [style.width.px]="programCourses().length * 220">
                     <div class="day-title"><strong>{{ dateLabel(date, { weekday: 'long' }) }}</strong><span>{{ dateLabel(date, { day: '2-digit', month: 'long' }) }}</span></div>
                     <div class="course-heads">
-                      @for (course of activeCourses(); track course.id) { <div><strong>{{ course.name }}</strong><small>{{ course.location || 'Ort offen' }}</small></div> }
+                      @for (course of programCourses(); track course.id) { <div><strong>{{ course.name }}</strong><small>{{ course.location || 'Ort offen' }}</small></div> }
                     </div>
                   </div>
                 }
@@ -122,8 +129,8 @@
                   @for (hour of timelineHours(); track hour) { <span [style.top.px]="(hour - timelineStartHour()) * 48">{{ hourLabel(hour) }}</span> }
                 </div>
                 @for (date of visibleDates(); track date) {
-                  <div class="day-tracks" [style.width.px]="activeCourses().length * 220" [style.height.px]="scheduleHeight()">
-                    @for (course of activeCourses(); track course.id) {
+                  <div class="day-tracks" [style.width.px]="programCourses().length * 220" [style.height.px]="scheduleHeight()">
+                    @for (course of programCourses(); track course.id) {
                       <div class="course-track" [style.height.px]="scheduleHeight()" (dragover)="allowDrop($event)" (drop)="dropOnTrack($event, course.id, date)">
                         @for (hour of timelineHours(); track hour) { <i class="hour-line" [style.top.px]="(hour - timelineStartHour()) * 48"></i> }
                         @for (placement of columnPlacements(course.id, date); track placement.id) {
@@ -142,6 +149,7 @@
                 }
               </div>
             </div>
+            @if (!programCourses().length) { <div class="no-courses-selected"><strong>Keine Kurse eingeblendet</strong><span>Öffne die Kursauswahl und aktiviere mindestens einen Kurs.</span></div> }
           </div>
         </div>
         <p class="schedule-hint">Ziehen rastet auf 15 Minuten ein. Parallele Lektionen werden nebeneinander angezeigt. Doppelklick öffnet den Lektionsbeschrieb.</p>
@@ -160,6 +168,9 @@
             <div class="library-card-head"><span class="category-badge cat-{{ lesson.category }}">{{ lessonCode(lesson) || lesson.category }}</span><label class="print-check"><input type="checkbox" [checked]="selectedLessonPrintIds().includes(lesson.id)" (change)="toggleLessonPrint(lesson.id)"><span>Für Druck</span></label><span>{{ lesson.durationMinutes }} Min.</span></div>
             <div><h4>{{ lesson.title }}</h4><p>{{ lesson.summary || 'Noch keine Kurzbeschreibung.' }}</p></div>
             <div class="lesson-stats"><span>{{ lesson.goals.length }} Ziele</span><span>{{ lesson.steps.length }} Schritte</span><span [class.shared]="placementCount(lesson.id) > 1">{{ placementCount(lesson.id) }} Einplanungen</span></div>
+            @if (lessonPlacements(lesson.id).length) {
+              <details class="lesson-placements"><summary>Einplanungen ansehen</summary><div>@for (placement of lessonPlacements(lesson.id); track placement.id) { <article><span><strong>{{ course(placement.courseId)?.name }}</strong><small>{{ dateLabel(placement.date) }} · {{ placement.startTime }}–{{ addMinutes(placement.startTime, lesson.durationMinutes) }} · {{ placement.location || course(placement.courseId)?.location || 'Ort offen' }}</small></span><button class="icon-button danger" type="button" (click)="removePlacementFromLesson(placement, lesson)" aria-label="Einplanung entfernen">×</button></article> }</div></details>
+            } @else { <p class="not-planned">Noch nicht eingeplant</p> }
             <div class="card-actions"><button type="button" (click)="openDetail(lesson)">Ansehen</button><button type="button" (click)="openLesson(lesson)">Bearbeiten</button><button type="button" (click)="openPlacement(lesson.id)" [disabled]="!activeCourses().length">Einplanen</button><button type="button" (click)="duplicateLibraryLesson(lesson)">Duplizieren</button><button class="danger" type="button" (click)="deleteLesson(lesson)">Löschen</button></div>
           </article>
         } @empty {
@@ -249,7 +260,7 @@
   }
 
   @if (modal() === 'course') {
-    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="course-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">{{ activeEventName() }}</p><h3 id="course-title">{{ courseDraft.id ? 'Kurs bearbeiten' : 'Kurs hinzufügen' }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><form (ngSubmit)="saveCourse()"><label>Name<input name="courseName" [(ngModel)]="courseDraft.name" placeholder="z. B. GLK" autofocus></label><div class="field-row"><label>Startdatum<input name="courseStart" type="date" [(ngModel)]="courseDraft.startDate"></label><label>Enddatum<input name="courseEnd" type="date" [(ngModel)]="courseDraft.endDate"></label></div><label>Standardort<input name="courseLocation" [(ngModel)]="courseDraft.location" placeholder="Freitext"></label><label>J+S-Orientierungsrahmen<select name="courseFramework" [(ngModel)]="courseDraft.frameworkId"><option value="">Kein Orientierungsrahmen</option>@for (framework of frameworks; track framework.id) { <option [value]="framework.id">{{ framework.name }}</option> }</select></label>@if (formError()) { <p class="form-error">{{ formError() }}</p> }<div class="modal-actions"><button class="secondary" type="button" (click)="closeModal()">Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form></section></div>
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="course-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">{{ activeEventName() }}</p><h3 id="course-title">{{ courseDraft.id ? 'Kurs bearbeiten' : 'Kurs hinzufügen' }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><form (ngSubmit)="saveCourse()"><label>Name<input name="courseName" [(ngModel)]="courseDraft.name" placeholder="z. B. GLK" autofocus></label><div class="field-row"><label>Startdatum<input name="courseStart" type="date" [min]="activeEventStart()" [max]="activeEventEnd()" [(ngModel)]="courseDraft.startDate"></label><label>Enddatum<input name="courseEnd" type="date" [min]="activeEventStart()" [max]="activeEventEnd()" [(ngModel)]="courseDraft.endDate"></label></div><p class="field-hint">Kurse müssen vollständig innerhalb der Kursveranstaltung liegen.</p><label>Standardort<input name="courseLocation" [(ngModel)]="courseDraft.location" placeholder="Freitext"></label><label>J+S-Orientierungsrahmen<select name="courseFramework" [(ngModel)]="courseDraft.frameworkId"><option value="">Kein Orientierungsrahmen</option>@for (framework of frameworks; track framework.id) { <option [value]="framework.id">{{ framework.name }}</option> }</select></label>@if (formError()) { <p class="form-error">{{ formError() }}</p> }<div class="modal-actions"><button class="secondary" type="button" (click)="closeModal()">Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form></section></div>
   }
 
   @if (modal() === 'lesson') {
@@ -273,7 +284,7 @@
   }
 
   @if (modal() === 'placement') {
-    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="placement-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">{{ lesson(placementDraft.lessonId)?.title }}</p><h3 id="placement-title">{{ placementDraft.id ? 'Einplanung verschieben' : 'In Kurs einplanen' }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><form (ngSubmit)="savePlacement()"><label>Kurs<select name="placementCourse" [(ngModel)]="placementDraft.courseId" (ngModelChange)="placementCourseChanged()">@for (course of activeCourses(); track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label><div class="field-row"><label>Datum<input name="placementDate" type="date" [(ngModel)]="placementDraft.date"></label><label>Startzeit<input name="placementStart" type="time" step="900" [(ngModel)]="placementDraft.startTime"></label></div><label>Kursbezogener Ort<input name="placementLocation" [(ngModel)]="placementDraft.location"></label>@if (formError()) { <p class="form-error">{{ formError() }}</p> }<div class="modal-actions"><button class="secondary" type="button" (click)="closeModal()">Abbrechen</button><button class="primary" type="submit">{{ placementDraft.id ? 'Verschieben' : 'Einplanen' }}</button></div></form></section></div>
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="placement-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">{{ lesson(placementDraft.lessonId)?.title }}</p><h3 id="placement-title">{{ placementDraft.id ? 'Einplanung verschieben' : 'In Kurs einplanen' }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><form (ngSubmit)="savePlacement()"><label>Kurs<select name="placementCourse" [(ngModel)]="placementDraft.courseId" (ngModelChange)="placementCourseChanged()">@for (course of activeCourses(); track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label><div class="field-row"><label>Datum<input name="placementDate" type="date" [min]="placementMinDate()" [max]="placementMaxDate()" [(ngModel)]="placementDraft.date"></label><label>Startzeit<input name="placementStart" type="time" step="900" [(ngModel)]="placementDraft.startTime"></label></div><label>Kursbezogener Ort<input name="placementLocation" [(ngModel)]="placementDraft.location"></label>@if (formError()) { <p class="form-error">{{ formError() }}</p> }<div class="modal-actions"><button class="secondary" type="button" (click)="closeModal()">Abbrechen</button><button class="primary" type="submit">{{ placementDraft.id ? 'Verschieben' : 'Einplanen' }}</button></div></form></section></div>
   }
 
   @if (modal() === 'actions' && activeActionPlacement(); as placement) {
@@ -281,16 +292,39 @@
   }
 
   @if (modal() === 'detail' && detailLesson(); as lesson) {
-    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal lesson-detail" role="dialog" aria-modal="true" aria-labelledby="detail-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">Lektionsbeschrieb · {{ lessonCode(lesson) }}</p><h3 id="detail-title">{{ lesson.title }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><div class="detail-actions"><button class="secondary" type="button" (click)="openLesson(lesson)">Bearbeiten</button><button class="primary" type="button" (click)="printLesson(lesson)">Drucken / PDF</button></div><div class="detail-kpis"><span><small>Dauer</small><strong>{{ lesson.durationMinutes }} Min.</strong></span><span><small>Ziele</small><strong>{{ lesson.goals.length }}</strong></span><span><small>Einplanungen</small><strong>{{ placementCount(lesson.id) }}</strong></span></div>@if (lesson.summary) { <p class="detail-summary">{{ lesson.summary }}</p> }<section><h4>Ziele</h4>@for (goal of lesson.goals; track goalReferenceKey(goal)) { <p class="goal-text">{{ goalLabel(goal) }}</p> } @empty { <p class="muted-box">Keine Ziele zugeordnet.</p> }</section><div class="detail-docs"><section><h4>TN-Unterlagen</h4><p>{{ lesson.participantDocuments || '—' }}</p></section><section><h4>Kursmitarbeitenden-Unterlagen</h4><p>{{ lesson.instructorDocuments || '—' }}</p></section><section><h4>Lehrmittel</h4><p>{{ lesson.teachingReferences || '—' }}</p></section><section><h4>Material</h4><p>{{ lesson.material || '—' }}</p></section></div><section><div class="steps-head"><h4>Ablauf</h4><span [class.warning]="lessonStepTotalValue(lesson) !== lesson.durationMinutes">{{ lessonStepTotalValue(lesson) }} / {{ lesson.durationMinutes }} Min.</span></div><div class="detail-steps">@for (step of lesson.steps; track step.id) { <article><b>{{ arivaLabel(step.arivaPhase) }}</b><div><strong>{{ step.title }}</strong><p>{{ step.description }}</p></div><span>{{ step.durationMinutes }}′</span></article> }</div></section></section></div>
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal lesson-detail" role="dialog" aria-modal="true" aria-labelledby="detail-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">Lektionsbeschrieb · {{ lessonCode(lesson) }}</p><h3 id="detail-title">{{ lesson.title }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><div class="detail-actions"><button class="secondary" type="button" (click)="openLesson(lesson)">Bearbeiten</button><button class="primary" type="button" (click)="printLesson(lesson)">Drucken / PDF</button></div><div class="detail-kpis"><span><small>Dauer</small><strong>{{ lesson.durationMinutes }} Min.</strong></span><span><small>Ziele</small><strong>{{ lesson.goals.length }}</strong></span><span><small>Einplanungen</small><strong>{{ placementCount(lesson.id) }}</strong></span></div><section class="detail-placements"><h4>Einplanungen</h4>@for (placement of lessonPlacements(lesson.id); track placement.id) { <article><span><strong>{{ course(placement.courseId)?.name }}</strong><small>{{ dateLabel(placement.date) }} · {{ placement.startTime }}–{{ addMinutes(placement.startTime, lesson.durationMinutes) }} · {{ placement.location || course(placement.courseId)?.location || 'Ort offen' }}</small></span><button class="danger-outline" type="button" (click)="removePlacementFromLesson(placement, lesson)">Entfernen</button></article> } @empty { <p class="muted-box">Diese Lektion ist noch nicht eingeplant.</p> }</section>@if (lesson.summary) { <p class="detail-summary">{{ lesson.summary }}</p> }<section><h4>Ziele</h4>@for (goal of lesson.goals; track goalReferenceKey(goal)) { <p class="goal-text">{{ goalLabel(goal) }}</p> } @empty { <p class="muted-box">Keine Ziele zugeordnet.</p> }</section><div class="detail-docs"><section><h4>TN-Unterlagen</h4><p>{{ lesson.participantDocuments || '—' }}</p></section><section><h4>Kursmitarbeitenden-Unterlagen</h4><p>{{ lesson.instructorDocuments || '—' }}</p></section><section><h4>Lehrmittel</h4><p>{{ lesson.teachingReferences || '—' }}</p></section><section><h4>Material</h4><p>{{ lesson.material || '—' }}</p></section></div><section><div class="steps-head"><h4>Ablauf</h4><span [class.warning]="lessonStepTotalValue(lesson) !== lesson.durationMinutes">{{ lessonStepTotalValue(lesson) }} / {{ lesson.durationMinutes }} Min.</span></div><div class="detail-steps">@for (step of lesson.steps; track step.id) { <article><b>{{ arivaLabel(step.arivaPhase) }}</b><div><strong>{{ step.title }}</strong><p>{{ step.description }}</p></div><span>{{ step.durationMinutes }}′</span></article> }</div></section></section></div>
   }
 
   @if (toast()) { <div class="toast no-print" role="status">{{ toast() }}</div> }
 
   @if (printMode() === 'program' && activeEvent(); as event) {
     <section class="print-sheet print-program">
-      <header><div><p>Trailbox · Kursprogramm</p><h1>{{ event.name }}</h1><span>{{ dateLabel(event.startDate, { day: '2-digit', month: 'long', year: 'numeric' }) }} – {{ dateLabel(event.endDate, { day: '2-digit', month: 'long', year: 'numeric' }) }}</span></div><strong>{{ printCourses().length }} Kurse</strong></header>
-      <div class="print-legend"><strong>Kategorien</strong>@for (category of categories; track category) { <span class="cat-{{ category }}"><b>{{ category }}</b></span> }</div>
-      @for (date of visibleDates(); track date) { <section class="print-day"><h2>{{ dateLabel(date, { weekday: 'long', day: '2-digit', month: 'long' }) }}</h2><div class="print-course-grid">@for (course of printCourses(); track course.id) { <article><h3>{{ course.name }} <small>{{ course.location }}</small></h3>@for (placement of columnPlacements(course.id, date); track placement.id) { @if (lesson(placement.lessonId); as lesson) { <div class="print-placement cat-{{ lesson.category }}"><time>{{ placement.startTime }}–{{ addMinutes(placement.startTime, lesson.durationMinutes) }}</time><b>{{ lessonCode(lesson) }}</b><span>{{ lesson.title }}</span><small>{{ placement.location || course.location }}</small></div> } } @empty { <p>Keine Lektionen</p> }</article> }</div></section> }
+      <header><div class="print-brand"><b>▲</b><span>Trailbox</span></div><div class="print-title"><p>Kursprogramm</p><h1>{{ event.name }}</h1><span>{{ dateLabel(event.startDate, { day: '2-digit', month: 'long', year: 'numeric' }) }} – {{ dateLabel(event.endDate, { day: '2-digit', month: 'long', year: 'numeric' }) }}</span></div><strong>{{ printCourses().length }} Kurse</strong></header>
+      <div class="print-matrix-head" [style.grid-template-columns]="printGridColumns()">
+        <div class="print-time-heading">Zeit</div>
+        @for (date of eventDates(); track date) {
+          <div class="print-date-heading" [style.grid-column]="'span ' + printCourses().length">
+            <div><strong>{{ dateLabel(date, { weekday: 'long' }) }}</strong><span>{{ dateLabel(date, { day: '2-digit', month: '2-digit' }) }}</span></div>
+            <div class="print-course-heads" [style.grid-template-columns]="'repeat(' + printCourses().length + ', minmax(0, 1fr))'">@for (course of printCourses(); track course.id) { <span><b>{{ course.name }}</b><small>{{ course.location }}</small></span> }</div>
+          </div>
+        }
+      </div>
+      <div class="print-matrix-body" [style.grid-template-columns]="printGridColumns()">
+        <div class="print-time-axis">
+          @for (hour of timelineHours(); track hour) { <span [style.top.%]="((hour - timelineStartHour()) / (timelineEndHour() - timelineStartHour())) * 100">{{ hourLabel(hour) }}</span> }
+        </div>
+        @for (date of eventDates(); track date) {
+          @for (course of printCourses(); track course.id) {
+            <div class="print-course-track">
+              @for (hour of timelineHours(); track hour) { <i [style.top.%]="((hour - timelineStartHour()) / (timelineEndHour() - timelineStartHour())) * 100"></i> }
+              @for (placement of columnPlacements(course.id, date); track placement.id) {
+                @if (lesson(placement.lessonId); as lesson) { <article class="print-block cat-{{ lesson.category }}" [ngStyle]="printPlacementStyle(placement, columnPlacements(course.id, date))"><time>{{ placement.startTime }}</time><b>{{ lessonCode(lesson) }}</b><span>{{ lesson.title }}</span></article> }
+              }
+            </div>
+          }
+        }
+      </div>
+      <footer><div class="print-legend"><strong>Kategorien</strong>@for (category of categories; track category) { <span class="cat-{{ category }}"><b>{{ category }}</b></span> }</div><span>Erstellt mit Trailbox Kursplaner</span></footer>
     </section>
   }
 

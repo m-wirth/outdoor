@@ -20,6 +20,7 @@ import { CoursePlannerStore } from './course-planner-store.service';
 import {
   addMinutes,
   assignPlacementLanes,
+  courseWithinEvent,
   courseGoalCoverage,
   dateLabel,
   datesBetween,
@@ -120,7 +121,7 @@ export class CoursePlannerComponent {
   readonly printMode = signal<PrintMode>(null);
   readonly printLessonIds = signal<string[]>([]);
   readonly selectedLessonPrintIds = signal<string[]>([]);
-  readonly printCourseId = signal('');
+  readonly visibleCourseIds = signal<string[] | null>(null);
   readonly personalPlannerPreview = signal<PersonalPlannerFile | null>(null);
   readonly selectedImportIds = signal<string[]>([]);
   readonly importAsCopy = signal(false);
@@ -141,9 +142,15 @@ export class CoursePlannerComponent {
   });
   readonly activeEventId = computed(() => this.activeEvent()?.id ?? '');
   readonly activeEventName = computed(() => this.activeEvent()?.name ?? '');
+  readonly activeEventStart = computed(() => this.activeEvent()?.startDate ?? '');
+  readonly activeEventEnd = computed(() => this.activeEvent()?.endDate ?? '');
   readonly activeCourses = computed(() => {
     const event = this.activeEvent();
     return event ? this.state().courses.filter((item) => item.trainingEventId === event.id) : [];
+  });
+  readonly programCourses = computed(() => {
+    const selected = this.visibleCourseIds();
+    return selected === null ? this.activeCourses() : this.activeCourses().filter((item) => selected.includes(item.id));
   });
   readonly eventDates = computed(() => {
     const event = this.activeEvent();
@@ -162,12 +169,12 @@ export class CoursePlannerComponent {
     return this.filteredLessons().filter((item) => !used.has(item.id));
   });
   readonly timelineStartHour = computed(() => {
-    const courseIds = new Set(this.activeCourses().map((item) => item.id));
+    const courseIds = new Set(this.programCourses().map((item) => item.id));
     const starts = this.state().placements.filter((item) => courseIds.has(item.courseId)).map((item) => minutesFromTime(item.startTime));
     return Math.min(6, ...starts.map((value) => Math.floor(value / 60)));
   });
   readonly timelineEndHour = computed(() => {
-    const courseIds = new Set(this.activeCourses().map((item) => item.id));
+    const courseIds = new Set(this.programCourses().map((item) => item.id));
     const lessons = new Map(this.state().lessons.map((item) => [item.id, item]));
     const ends = this.state().placements.filter((item) => courseIds.has(item.courseId)).map((item) => minutesFromTime(item.startTime) + (lessons.get(item.lessonId)?.durationMinutes ?? 0));
     return Math.max(22, ...ends.map((value) => Math.ceil(value / 60)));
@@ -202,6 +209,7 @@ export class CoursePlannerComponent {
   selectEvent(eventId: string): void {
     this.store.setActiveTrainingEvent(eventId);
     this.focusedDate.set('');
+    this.visibleCourseIds.set(null);
     const firstCourse = this.state().courses.find((item) => item.trainingEventId === eventId);
     this.coverageCourseId.set(firstCourse?.id ?? '');
   }
@@ -218,6 +226,8 @@ export class CoursePlannerComponent {
     const draft = this.eventDraft;
     if (!draft.name.trim() || !draft.startDate || !draft.endDate) return this.formError.set('Name, Startdatum und Enddatum sind Pflichtfelder.');
     if (draft.endDate < draft.startDate) return this.formError.set('Das Enddatum darf nicht vor dem Startdatum liegen.');
+    const invalidCourses = draft.id ? this.eventCourses(draft.id).filter((course) => !courseWithinEvent(course, draft)) : [];
+    if (invalidCourses.length) return this.formError.set(`Zeitraum zuerst bei folgenden Kursen anpassen: ${invalidCourses.map((course) => course.name).join(', ')}.`);
     if (draft.id) this.store.updateTrainingEvent(draft.id, { name: draft.name.trim(), startDate: draft.startDate, endDate: draft.endDate, mainInstructor: draft.mainInstructor.trim() });
     else this.store.createTrainingEvent({ name: draft.name.trim(), startDate: draft.startDate, endDate: draft.endDate, mainInstructor: draft.mainInstructor.trim() });
     this.closeModal();
@@ -247,6 +257,9 @@ export class CoursePlannerComponent {
     const draft = this.courseDraft;
     if (!event || !draft.name.trim() || !draft.startDate || !draft.endDate) return this.formError.set('Name, Startdatum und Enddatum sind Pflichtfelder.');
     if (draft.endDate < draft.startDate) return this.formError.set('Das Enddatum darf nicht vor dem Startdatum liegen.');
+    if (!courseWithinEvent(draft, event)) return this.formError.set(`Der Kurs muss zwischen ${this.dateLabel(event.startDate)} und ${this.dateLabel(event.endDate)} liegen.`);
+    const invalidPlacements = draft.id ? this.state().placements.filter((item) => item.courseId === draft.id && (item.date < draft.startDate || item.date > draft.endDate)) : [];
+    if (invalidPlacements.length) return this.formError.set(`${invalidPlacements.length} Einplanungen liegen ausserhalb des neuen Kurszeitraums.`);
     const patch = { name: draft.name.trim(), startDate: draft.startDate, endDate: draft.endDate, location: draft.location.trim(), frameworkId: draft.frameworkId || undefined };
     if (draft.id) this.store.updateCourse(draft.id, patch);
     else this.store.createCourse({ ...patch, trainingEventId: event.id });
@@ -375,6 +388,9 @@ export class CoursePlannerComponent {
     if (this.placementDraft.date < course.startDate || this.placementDraft.date > course.endDate) this.placementDraft.date = course.startDate;
   }
 
+  placementMinDate(): string { return this.course(this.placementDraft.courseId)?.startDate ?? ''; }
+  placementMaxDate(): string { return this.course(this.placementDraft.courseId)?.endDate ?? ''; }
+
   openPlacementActions(placement: LessonPlacement, event?: MouseEvent): void {
     event?.preventDefault();
     this.actionPlacementId.set(placement.id);
@@ -470,7 +486,54 @@ export class CoursePlannerComponent {
     return { top: `${top}px`, height: `${height}px`, left: `${lane.lane * width}%`, width: `calc(${width}% - 4px)` };
   }
 
+  printPlacementStyle(placement: LessonPlacement, column: LessonPlacement[]): Record<string, string> {
+    const lesson = this.lesson(placement.lessonId);
+    const lanes = assignPlacementLanes(column, this.state().lessons);
+    const lane = lanes.find((item) => item.placementId === placement.id) ?? { lane: 0, laneCount: 1 };
+    const range = Math.max(60, (this.timelineEndHour() - this.timelineStartHour()) * 60);
+    const top = ((minutesFromTime(placement.startTime) - this.timelineStartHour() * 60) / range) * 100;
+    const height = Math.max(1.3, ((lesson?.durationMinutes ?? 15) / range) * 100);
+    const width = 100 / lane.laneCount;
+    return { top: `${top}%`, height: `${height}%`, left: `${lane.lane * width}%`, width: `${width}%` };
+  }
+
+  printGridColumns(): string {
+    return `10mm repeat(${Math.max(1, this.printCourses().length * this.eventDates().length)}, minmax(0, 1fr))`;
+  }
+
+  courseFilterLabel(): string {
+    const selected = this.visibleCourseIds();
+    if (selected === null || selected.length === this.activeCourses().length) return 'Alle Kurse';
+    if (!selected.length) return 'Keine Kurse';
+    const names = this.programCourses().map((item) => item.name);
+    return names.length <= 2 ? names.join(', ') : `${names.length} Kurse`;
+  }
+
+  isCourseVisible(courseId: string): boolean {
+    const selected = this.visibleCourseIds();
+    return selected === null || selected.includes(courseId);
+  }
+
+  toggleCourseVisibility(courseId: string): void {
+    const selected = this.visibleCourseIds() ?? this.activeCourses().map((item) => item.id);
+    this.visibleCourseIds.set(selected.includes(courseId) ? selected.filter((id) => id !== courseId) : [...selected, courseId]);
+  }
+
+  showAllCourses(): void { this.visibleCourseIds.set(null); }
+  hideAllCourses(): void { this.visibleCourseIds.set([]); }
+
   placementCount(lessonId: string): number { return this.state().placements.filter((item) => item.lessonId === lessonId).length; }
+  lessonPlacements(lessonId: string): LessonPlacement[] {
+    return this.state().placements
+      .filter((item) => item.lessonId === lessonId)
+      .sort((left, right) => `${left.date} ${left.startTime}`.localeCompare(`${right.date} ${right.startTime}`));
+  }
+  removePlacementFromLesson(placement: LessonPlacement, lesson: Lesson): void {
+    const course = this.course(placement.courseId);
+    if (!window.confirm(`Einplanung von «${lesson.title}» in ${course?.name ?? 'diesem Kurs'} am ${this.dateLabel(placement.date)} entfernen?`)) return;
+    this.store.removePlacement(placement.id);
+    this.notify('Einplanung entfernt; die Lektion bleibt erhalten.');
+  }
   lesson(lessonId: string): Lesson | undefined { return this.state().lessons.find((item) => item.id === lessonId); }
   course(courseId: string): Course | undefined { return this.state().courses.find((item) => item.id === courseId); }
   eventCourses(eventId: string): Course[] { return this.state().courses.filter((item) => item.trainingEventId === eventId); }
@@ -494,7 +557,7 @@ export class CoursePlannerComponent {
     return this.state().lessons.filter((item) => ids.has(item.id));
   }
   printCourses(): Course[] {
-    return this.printCourseId() ? this.activeCourses().filter((item) => item.id === this.printCourseId()) : this.activeCourses();
+    return this.programCourses();
   }
   arivaLabel(phase?: LessonStep['arivaPhase']): string {
     return ({ A: 'Ausrichten', R: 'Reaktivieren', I: 'Informieren', V: 'Verarbeiten', A2: 'Auswerten', OTHER: 'Andere' } as Record<string, string>)[phase ?? ''] ?? '—';
