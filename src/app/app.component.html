@@ -30,7 +30,7 @@
     </nav>
   </header>
 
-  <main class="app-main" [class.planner-main]="view() === 'planner'">
+  <main class="app-main" [class.planner-main]="view() === 'planner' || view() === 'course-planner'">
     @if (view() === 'dashboard') {
       <section class="dashboard-intro">
         <div><p class="eyebrow">Deine Trailbox</p><h1>Was steht heute an?</h1></div>
@@ -42,18 +42,25 @@
           <span class="tile-copy"><small>Planung</small><strong>Personalplaner</strong><span>Anwesenheit, Mahlzeiten & Übernachtungen</span></span>
           <span class="tile-arrow">↗</span>
         </button>
+        <button class="feature-tile active course-planner-tile" type="button" (click)="open('course-planner')">
+          <span class="tile-number">02</span><span class="course-art" aria-hidden="true"><i></i><i></i><i></i><b>A1</b><b>F4</b><b>E2</b></span>
+          <span class="tile-copy"><small>Ausbildung</small><strong>Kursplaner</strong><span>Kursprogramme & Lektionen gestalten</span></span>
+          <span class="tile-arrow">↗</span>
+        </button>
         <button class="feature-tile active" type="button" (click)="open('checker')">
-          <span class="tile-number">02</span><span class="tile-art" aria-hidden="true"><i></i><b>✓</b></span>
+          <span class="tile-number">03</span><span class="tile-art" aria-hidden="true"><i></i><b>✓</b></span>
           <span class="tile-copy"><small>Administration</small><strong>Import-Checker</strong><span>Personen-CSV vor dem Import prüfen</span></span>
           <span class="tile-arrow">↗</span>
         </button>
-        <article class="feature-tile upcoming"><span class="tile-number">03</span><span class="ghost-lines"></span><span class="tile-copy"><small>Demnächst</small><strong>Touren-Wetter</strong><span>Wetterfenster auf einen Blick</span></span></article>
+        <article class="feature-tile upcoming"><span class="tile-number">04</span><span class="ghost-lines"></span><span class="tile-copy"><small>Demnächst</small><strong>Touren-Wetter</strong><span>Wetterfenster auf einen Blick</span></span></article>
       </section>
       <footer class="dashboard-footer"><span>Schweizer Berge, digital unterstützt.</span><span>Version 1.0</span></footer>
     } @else if (view() === 'checker') {
       <app-csv-checker />
-    } @else {
+    } @else if (view() === 'planner') {
       <app-planner />
+    } @else {
+      <app-course-planner />
     }
   </main>
 }

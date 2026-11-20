@@ -3,13 +3,14 @@ import { FormsModule } from '@angular/forms';
 import { APP_SETTINGS, AppSettings } from './app-settings';
 import { AuthService } from './auth.service';
 import { CsvCheckerComponent } from './csv-checker.component';
+import { CoursePlannerComponent } from './course-planner.component';
 import { PlannerComponent } from './planner.component';
 
-type View = 'dashboard' | 'checker' | 'planner';
+type View = 'dashboard' | 'checker' | 'planner' | 'course-planner';
 
 @Component({
   selector: 'app-root',
-  imports: [FormsModule, CsvCheckerComponent, PlannerComponent],
+  imports: [FormsModule, CsvCheckerComponent, PlannerComponent, CoursePlannerComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush

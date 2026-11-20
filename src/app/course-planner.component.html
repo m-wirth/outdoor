@@ -1,0 +1,310 @@
+<section class="course-planner-shell" [class.is-printing]="printMode()">
+  <header class="planner-hero no-print">
+    <div>
+      <p class="eyebrow">Programm & Ausbildung</p>
+      <h2>Kursplaner</h2>
+      <p>Mehrere Kurse, ein gemeinsames Programm – lokal auf diesem Gerät.</p>
+    </div>
+    <div class="save-state" [class.error]="store.storageError()">
+      <span></span>
+      @if (store.storageError()) { {{ store.storageError() }} } @else if (store.saving()) { Speichert … } @else { Gespeichert }
+    </div>
+  </header>
+
+  <nav class="planner-tabs no-print" aria-label="Kursplaner Navigation">
+    @for (item of tabs; track item.id) {
+      <button type="button" [class.active]="tab() === item.id" (click)="openTab(item.id)">{{ item.label }}</button>
+    }
+  </nav>
+
+  @if (tab() === 'events') {
+    <section class="view no-print">
+      <div class="section-heading">
+        <div><p class="eyebrow">Deine Planung</p><h3>Kursveranstaltungen</h3><p>Zeiträume und parallele Kurse zentral verwalten.</p></div>
+        <button class="primary" type="button" (click)="openEvent()">Neue Kursveranstaltung</button>
+      </div>
+
+      @if (!state().trainingEvents.length) {
+        <article class="empty-state">
+          <div class="empty-art" aria-hidden="true"><span>Mo</span><span>Di</span><span>Mi</span></div>
+          <div><p class="eyebrow">Noch ist alles frei</p><h4>Plane deinen ersten Kurs</h4><p>Erstelle die Veranstaltung manuell oder importiere sie aus dem Personalplaner.</p></div>
+          <div class="button-row"><button class="primary" type="button" (click)="openEvent()">Manuell erstellen</button><button class="secondary" type="button" (click)="openTab('transfer')">JSON importieren</button></div>
+        </article>
+      } @else {
+        <div class="event-grid">
+          @for (event of state().trainingEvents; track event.id) {
+            <article class="event-card" [class.active]="activeEventId() === event.id">
+              <button class="event-open" type="button" (click)="selectEvent(event.id); openTab('program')">
+                <span class="event-date"><strong>{{ dateLabel(event.startDate, { day: '2-digit' }) }}</strong><small>{{ dateLabel(event.startDate, { month: 'short' }) }}</small></span>
+                <span class="event-copy"><small>{{ dateLabel(event.startDate, { day: '2-digit', month: '2-digit', year: 'numeric' }) }} – {{ dateLabel(event.endDate, { day: '2-digit', month: '2-digit', year: 'numeric' }) }}</small><strong>{{ event.name }}</strong><span>{{ eventCourses(event.id).length }} Kurse · {{ eventPlacementCount(event.id) }} Einplanungen</span></span>
+              </button>
+              <div class="event-actions">
+                @if (event.source) { <span class="source-tag">Personalplaner</span> }
+                <button type="button" (click)="selectEvent(event.id); openEvent(event)" aria-label="Kursveranstaltung bearbeiten">Bearbeiten</button>
+                <button class="danger" type="button" (click)="deleteEvent(event)" aria-label="Kursveranstaltung löschen">Löschen</button>
+              </div>
+            </article>
+          }
+        </div>
+      }
+
+      @if (activeEvent(); as event) {
+        <section class="courses-panel">
+          <div class="panel-heading"><div><p class="eyebrow">{{ event.name }}</p><h4>Parallele Kurse</h4></div><button class="secondary" type="button" (click)="openCourse()">Kurs hinzufügen</button></div>
+          @if (!activeCourses().length) { <p class="muted-box">Noch keine Kurse. Füge etwa GLK, TLK oder QUEM hinzu.</p> }
+          <div class="course-list">
+            @for (course of activeCourses(); track course.id) {
+              <article class="course-row">
+                <span class="course-mark">{{ course.name.slice(0, 2).toUpperCase() }}</span>
+                <div><strong>{{ course.name }}</strong><small>{{ course.location || 'Ort noch offen' }} · {{ frameworkName(course.frameworkId) }}</small></div>
+                <span>{{ dateLabel(course.startDate, { day: '2-digit', month: '2-digit' }) }}–{{ dateLabel(course.endDate, { day: '2-digit', month: '2-digit' }) }}</span>
+                <span>{{ coursePlacementCount(course.id) }} Lektionen</span>
+                <button type="button" (click)="openCourse(course)">Bearbeiten</button>
+                <button class="icon-button danger" type="button" (click)="deleteCourse(course)" aria-label="Kurs löschen">×</button>
+              </article>
+            }
+          </div>
+        </section>
+      }
+    </section>
+  } @else if (tab() === 'program') {
+    <section class="view program-view no-print">
+      @if (!activeEvent()) {
+        <article class="empty-state compact"><div><h4>Keine Kursveranstaltung gewählt</h4><p>Erstelle oder wähle zuerst eine Kursveranstaltung.</p></div><button class="primary" type="button" (click)="openTab('events')">Zu den Kursveranstaltungen</button></article>
+      } @else if (!activeCourses().length) {
+        <article class="empty-state compact"><div><h4>Noch kein Kurs angelegt</h4><p>Für das Zeitraster braucht die Veranstaltung mindestens einen Kurs.</p></div><button class="primary" type="button" (click)="openCourse()">Kurs hinzufügen</button></article>
+      } @else {
+        <div class="program-toolbar">
+          <div class="event-switcher">
+            <label for="active-event">Kursveranstaltung</label>
+            <select id="active-event" [ngModel]="activeEventId()" (ngModelChange)="selectEvent($event)">
+              @for (event of state().trainingEvents; track event.id) { <option [value]="event.id">{{ event.name }}</option> }
+            </select>
+          </div>
+          <div class="focus-control">
+            <button type="button" [class.active]="!focusedDate()" (click)="focusedDate.set('')">Alle Tage</button>
+            @for (date of eventDates(); track date) { <button type="button" [class.active]="focusedDate() === date" (click)="focusedDate.set(date)">{{ dateLabel(date, { weekday: 'short', day: '2-digit' }) }}</button> }
+          </div>
+          <div class="print-control"><select aria-label="Druckumfang" [ngModel]="printCourseId()" (ngModelChange)="printCourseId.set($event)"><option value="">Gesamte Veranstaltung</option>@for (course of activeCourses(); track course.id) { <option [value]="course.id">Nur {{ course.name }}</option> }</select><button class="secondary" type="button" (click)="printProgram()">Drucken / PDF</button></div>
+        </div>
+
+        <div class="program-layout">
+          <aside class="lesson-drawer">
+            <div><p class="eyebrow">Lektionsbibliothek</p><h4>Noch einplanen</h4></div>
+            <input type="search" placeholder="Lektion suchen …" [ngModel]="lessonSearch()" (ngModelChange)="lessonSearch.set($event)">
+            <div class="drawer-list">
+              @for (lesson of unplannedLessons(); track lesson.id) {
+                <article class="drawer-lesson" draggable="true" (dragstart)="startLessonDrag($event, lesson.id)">
+                  <span class="category-badge cat-{{ lesson.category }}">{{ lessonCode(lesson) || lesson.category }}</span>
+                  <div><strong>{{ lesson.title }}</strong><small>{{ lesson.durationMinutes }} Min. · ziehen oder auswählen</small></div>
+                  <button type="button" (click)="openPlacement(lesson.id)" aria-label="Lektion einplanen">+</button>
+                </article>
+              } @empty { <p class="drawer-empty">Alle passenden Lektionen sind bereits verwendet – oder die Bibliothek ist noch leer.</p> }
+            </div>
+            <button class="text-button" type="button" (click)="openLesson()">+ Neue Lektion</button>
+          </aside>
+
+          <div class="schedule-scroll">
+            <div class="schedule" [style.--track-height.px]="scheduleHeight()">
+              <div class="schedule-head">
+                <div class="time-corner">Zeit</div>
+                @for (date of visibleDates(); track date) {
+                  <div class="day-head" [style.width.px]="activeCourses().length * 220">
+                    <div class="day-title"><strong>{{ dateLabel(date, { weekday: 'long' }) }}</strong><span>{{ dateLabel(date, { day: '2-digit', month: 'long' }) }}</span></div>
+                    <div class="course-heads">
+                      @for (course of activeCourses(); track course.id) { <div><strong>{{ course.name }}</strong><small>{{ course.location || 'Ort offen' }}</small></div> }
+                    </div>
+                  </div>
+                }
+              </div>
+              <div class="schedule-body">
+                <div class="time-axis" [style.height.px]="scheduleHeight()">
+                  @for (hour of timelineHours(); track hour) { <span [style.top.px]="(hour - timelineStartHour()) * 48">{{ hourLabel(hour) }}</span> }
+                </div>
+                @for (date of visibleDates(); track date) {
+                  <div class="day-tracks" [style.width.px]="activeCourses().length * 220" [style.height.px]="scheduleHeight()">
+                    @for (course of activeCourses(); track course.id) {
+                      <div class="course-track" [style.height.px]="scheduleHeight()" (dragover)="allowDrop($event)" (drop)="dropOnTrack($event, course.id, date)">
+                        @for (hour of timelineHours(); track hour) { <i class="hour-line" [style.top.px]="(hour - timelineStartHour()) * 48"></i> }
+                        @for (placement of columnPlacements(course.id, date); track placement.id) {
+                          @if (lesson(placement.lessonId); as lesson) {
+                            <article class="lesson-card cat-{{ lesson.category }}" draggable="true" [ngStyle]="placementStyle(placement, columnPlacements(course.id, date))" (dragstart)="startPlacementDrag($event, placement.id)" (contextmenu)="openPlacementActions(placement, $event)" (dblclick)="openDetail(lesson)">
+                              <button class="card-menu" type="button" (click)="openPlacementActions(placement, $event)" aria-label="Lektionsaktionen">•••</button>
+                              <div class="card-meta"><strong>{{ placement.startTime }}–{{ addMinutes(placement.startTime, lesson.durationMinutes) }}</strong>@if (placementCount(lesson.id) > 1) { <span title="Kursübergreifend verwendet">⛓ {{ placementCount(lesson.id) }}</span> }</div>
+                              <b>{{ lessonCode(lesson) }} · {{ lesson.title }}</b>
+                              @if (lesson.durationMinutes >= 45) { <small>{{ placement.location || course.location || 'Ort offen' }} · {{ lesson.goals.length }} Ziele</small> }
+                            </article>
+                          }
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="schedule-hint">Ziehen rastet auf 15 Minuten ein. Parallele Lektionen werden nebeneinander angezeigt. Doppelklick öffnet den Lektionsbeschrieb.</p>
+      }
+    </section>
+  } @else if (tab() === 'lessons') {
+    <section class="view no-print">
+      <div class="section-heading">
+        <div><p class="eyebrow">Global synchron</p><h3>Lektionsbibliothek</h3><p>Inhalte werden überall aktualisiert, Termine bleiben kursbezogen.</p></div>
+        <button class="primary" type="button" (click)="openLesson()">Neue Lektion</button>
+      </div>
+      <div class="library-tools"><input type="search" placeholder="Nach Kennung, Titel oder Inhalt suchen …" [ngModel]="lessonSearch()" (ngModelChange)="lessonSearch.set($event)"><span>{{ filteredLessons().length }} Lektionen</span><button class="secondary" type="button" [disabled]="!selectedLessonPrintIds().length" (click)="printSelectedLessons()">{{ selectedLessonPrintIds().length || '' }} Auswahl drucken</button></div>
+      <div class="lesson-grid">
+        @for (lesson of filteredLessons(); track lesson.id) {
+          <article class="library-card">
+            <div class="library-card-head"><span class="category-badge cat-{{ lesson.category }}">{{ lessonCode(lesson) || lesson.category }}</span><label class="print-check"><input type="checkbox" [checked]="selectedLessonPrintIds().includes(lesson.id)" (change)="toggleLessonPrint(lesson.id)"><span>Für Druck</span></label><span>{{ lesson.durationMinutes }} Min.</span></div>
+            <div><h4>{{ lesson.title }}</h4><p>{{ lesson.summary || 'Noch keine Kurzbeschreibung.' }}</p></div>
+            <div class="lesson-stats"><span>{{ lesson.goals.length }} Ziele</span><span>{{ lesson.steps.length }} Schritte</span><span [class.shared]="placementCount(lesson.id) > 1">{{ placementCount(lesson.id) }} Einplanungen</span></div>
+            <div class="card-actions"><button type="button" (click)="openDetail(lesson)">Ansehen</button><button type="button" (click)="openLesson(lesson)">Bearbeiten</button><button type="button" (click)="openPlacement(lesson.id)" [disabled]="!activeCourses().length">Einplanen</button><button type="button" (click)="duplicateLibraryLesson(lesson)">Duplizieren</button><button class="danger" type="button" (click)="deleteLesson(lesson)">Löschen</button></div>
+          </article>
+        } @empty {
+          <article class="empty-state compact"><div><h4>Noch keine Lektionen</h4><p>Lege eine globale Lektion an und plane sie anschliessend in beliebig vielen Kursen ein.</p></div><button class="primary" type="button" (click)="openLesson()">Erste Lektion erstellen</button></article>
+        }
+      </div>
+    </section>
+  } @else if (tab() === 'goals') {
+    <section class="view no-print">
+      <div class="section-heading"><div><p class="eyebrow">Lernziele im Blick</p><h3>Ziele</h3><p>Drei eingebaute J+S-Kataloge und beliebig viele eigene Ziele.</p></div></div>
+      <div class="goal-layout">
+        <section class="goal-panel coverage-panel">
+          <div class="panel-heading"><div><p class="eyebrow">Orientierungsrahmen</p><h4>Zielabdeckung</h4></div><label class="switch"><input type="checkbox" [checked]="coverageOnlyMissing()" (change)="coverageOnlyMissing.set(!coverageOnlyMissing())"><span>Nur offene</span></label></div>
+          <label>Kurs<select [ngModel]="coverageCourseId()" (ngModelChange)="coverageCourseId.set($event); coverageCourseChanged()"><option value="">Kurs wählen</option>@for (course of activeCourses(); track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label>
+          @if (!coverageCourseId()) { <p class="muted-box">Wähle einen Kurs mit Orientierungsrahmen.</p> }
+          <div class="coverage-list">
+            @for (row of coverage(); track row.goalId) {
+              <article [class.covered]="row.lessons.length">
+                <span>{{ row.code }}</span><div><p>{{ row.text }}</p>@if (row.lessons.length) { <small>{{ row.lessons.length }}× · @for (lesson of row.lessons; track lesson.id; let last = $last) { {{ lessonCode(lesson) }}{{ last ? '' : ', ' }} }</small> } @else { <small>Noch nicht abgedeckt</small> }</div>
+              </article>
+            }
+          </div>
+        </section>
+
+        <section class="goal-panel custom-goals">
+          <div><p class="eyebrow">Ergänzen</p><h4>Eigene Zielkategorien</h4></div>
+          <form class="inline-form category-form" (ngSubmit)="saveGoalCategory()">
+            <label>Name<input name="categoryName" [(ngModel)]="goalCategoryDraft.name" placeholder="z. B. Verband"></label>
+            <label>Kürzel<input name="categoryShort" [(ngModel)]="goalCategoryDraft.shortName" placeholder="Optional"></label>
+            <label>Farbe<input name="categoryColor" type="color" [(ngModel)]="goalCategoryDraft.color"></label>
+            <button class="secondary" type="submit">Kategorie anlegen</button>
+          </form>
+          @if (state().customGoalCategories.length) {
+            <form class="inline-form goal-form" (ngSubmit)="saveCustomGoal()">
+              <label>Kategorie<select name="goalCategory" [(ngModel)]="customGoalDraft.categoryId"><option value="">Wählen</option>@for (category of state().customGoalCategories; track category.id) { <option [value]="category.id">{{ category.name }}</option> }</select></label>
+              <label>Nummer<input name="goalCode" [(ngModel)]="customGoalDraft.code" placeholder="Optional"></label>
+              <label class="wide">Zieltext<input name="goalText" [(ngModel)]="customGoalDraft.text" placeholder="Die Teilnehmenden …"></label>
+              <button class="primary" type="submit">Ziel hinzufügen</button>
+            </form>
+          }
+          <div class="custom-category-list">
+            @for (category of customGoalsByCategory(); track category.id) {
+              <article class="custom-category" [style.--goal-color]="category.color">
+                <header><div><span></span><strong>{{ category.name }}</strong><small>{{ category.goals.length }} Ziele</small></div><button class="danger" type="button" (click)="deleteGoalCategory(category)">Kategorie löschen</button></header>
+                @for (goal of category.goals; track goal.id) { <div class="custom-goal-row"><b>{{ goal.code || '•' }}</b><span>{{ goal.text }}</span><button class="icon-button danger" type="button" (click)="deleteCustomGoal(goal)" aria-label="Ziel löschen">×</button></div> }
+              </article>
+            } @empty { <p class="muted-box">Noch keine eigenen Zielkategorien.</p> }
+          </div>
+        </section>
+      </div>
+    </section>
+  } @else {
+    <section class="view no-print">
+      <div class="section-heading"><div><p class="eyebrow">Sicher & übertragbar</p><h3>Import & Export</h3><p>Personalplaner übernehmen oder den gesamten lokalen Zustand sichern.</p></div></div>
+      <div class="transfer-grid">
+        <section class="transfer-card featured">
+          <span class="transfer-number">01</span><p class="eyebrow">Personalplaner</p><h4>Kursstruktur importieren</h4><p>Trainings und Unterkurse werden vor dem Import geprüft. Bestehende Einplanungen bleiben bei Aktualisierungen erhalten.</p>
+          <label class="file-button">JSON-Datei auswählen<input type="file" accept="application/json,.json" (change)="readPersonalPlanner($event)"></label>
+          @if (personalPlannerPreview(); as preview) {
+            <div class="import-preview">
+              <h5>{{ preview.trainings.length }} Kursveranstaltungen gefunden</h5>
+              @for (training of preview.trainings; track training.id) {
+                <label><input type="checkbox" [checked]="selectedImportIds().includes(training.id)" (change)="toggleImportTraining(training.id)"><span><strong>{{ training.name }}</strong><small>{{ trainingPreview(training) }}</small></span></label>
+              }
+              <label class="copy-option"><input type="checkbox" [checked]="importAsCopy()" (change)="importAsCopy.set(!importAsCopy())"><span>Als unabhängige Kopie importieren</span></label>
+              <button class="primary" type="button" [disabled]="!selectedImportIds().length" (click)="runPersonalPlannerImport()">Auswahl importieren</button>
+            </div>
+          }
+        </section>
+        <section class="transfer-card">
+          <span class="transfer-number">02</span><p class="eyebrow">Datensicherung</p><h4>Alles als JSON exportieren</h4><p>Kursveranstaltungen, Kurse, Lektionen, Einplanungen, eigene Ziele und Einstellungen in einer Datei sichern.</p>
+          <div class="backup-stat"><strong>{{ state().trainingEvents.length }}</strong><span>Veranstaltungen</span><strong>{{ state().lessons.length }}</strong><span>Lektionen</span><strong>{{ state().placements.length }}</strong><span>Einplanungen</span></div>
+          <button class="primary" type="button" (click)="exportBackup()">Vollständige Sicherung exportieren</button>
+        </section>
+        <section class="transfer-card">
+          <span class="transfer-number">03</span><p class="eyebrow">Wiederherstellen</p><h4>Sicherung importieren</h4><p>Die Datei wird vollständig validiert, bevor Daten geschrieben werden.</p>
+          <div class="mode-picker"><label><input type="radio" name="backupMode" value="merge" [ngModel]="backupMode()" (ngModelChange)="backupMode.set($event)"> Zusammenführen</label><label><input type="radio" name="backupMode" value="replace" [ngModel]="backupMode()" (ngModelChange)="backupMode.set($event)"> Vorhandene ersetzen</label></div>
+          <label class="file-button secondary-file">Sicherung auswählen<input type="file" accept="application/json,.json" (change)="importBackup($event)"></label>
+        </section>
+      </div>
+      <section class="danger-zone"><div><strong>Lokale Daten zurücksetzen</strong><p>Diese Aktion betrifft nur den Kursplaner auf diesem Gerät.</p></div><button class="danger-outline" type="button" (click)="clearData()">Alle Kursplaner-Daten löschen</button></section>
+    </section>
+  }
+
+  @if (modal() === 'event') {
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="event-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">Kursveranstaltung</p><h3 id="event-title">{{ eventDraft.id ? 'Bearbeiten' : 'Neu anlegen' }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><form (ngSubmit)="saveEvent()"><label>Name<input name="eventName" [(ngModel)]="eventDraft.name" placeholder="z. B. GTQ 2026-2" autofocus></label><div class="field-row"><label>Startdatum<input name="eventStart" type="date" [(ngModel)]="eventDraft.startDate"></label><label>Enddatum<input name="eventEnd" type="date" [(ngModel)]="eventDraft.endDate"></label></div><label>Hauptleitung <span>optional</span><input name="eventLead" [(ngModel)]="eventDraft.mainInstructor"></label>@if (formError()) { <p class="form-error">{{ formError() }}</p> }<div class="modal-actions"><button class="secondary" type="button" (click)="closeModal()">Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form></section></div>
+  }
+
+  @if (modal() === 'course') {
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="course-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">{{ activeEventName() }}</p><h3 id="course-title">{{ courseDraft.id ? 'Kurs bearbeiten' : 'Kurs hinzufügen' }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><form (ngSubmit)="saveCourse()"><label>Name<input name="courseName" [(ngModel)]="courseDraft.name" placeholder="z. B. GLK" autofocus></label><div class="field-row"><label>Startdatum<input name="courseStart" type="date" [(ngModel)]="courseDraft.startDate"></label><label>Enddatum<input name="courseEnd" type="date" [(ngModel)]="courseDraft.endDate"></label></div><label>Standardort<input name="courseLocation" [(ngModel)]="courseDraft.location" placeholder="Freitext"></label><label>J+S-Orientierungsrahmen<select name="courseFramework" [(ngModel)]="courseDraft.frameworkId"><option value="">Kein Orientierungsrahmen</option>@for (framework of frameworks; track framework.id) { <option [value]="framework.id">{{ framework.name }}</option> }</select></label>@if (formError()) { <p class="form-error">{{ formError() }}</p> }<div class="modal-actions"><button class="secondary" type="button" (click)="closeModal()">Abbrechen</button><button class="primary" type="submit">Speichern</button></div></form></section></div>
+  }
+
+  @if (modal() === 'lesson') {
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal lesson-modal" role="dialog" aria-modal="true" aria-labelledby="lesson-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">Globaler Lektionsinhalt</p><h3 id="lesson-title">{{ lessonDraft.id ? 'Lektion bearbeiten' : 'Neue Lektion' }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><form (ngSubmit)="saveLesson()">
+      <div class="lesson-basic"><label>Kategorie<select name="lessonCategory" [(ngModel)]="lessonDraft.category">@for (category of categories; track category) { <option [value]="category">{{ category }}</option> }</select></label><label>Nummer<input name="lessonNumber" [(ngModel)]="lessonDraft.number" placeholder="1a"></label><label class="title-field">Titel<input name="lessonTitle" [(ngModel)]="lessonDraft.title" placeholder="Titel der Lektion" autofocus></label><label>Dauer (Min.)<input name="lessonDuration" type="number" min="1" step="15" [(ngModel)]="lessonDraft.durationMinutes"></label></div>
+      <label>Kurzbeschreibung<textarea name="lessonSummary" rows="2" [(ngModel)]="lessonDraft.summary"></textarea></label>
+      <section class="goal-picker"><div class="goal-picker-head"><div><strong>Ziele</strong><span>{{ lessonDraft.goalKeys.length }} ausgewählt</span></div><input type="search" name="goalSearch" placeholder="Nummer oder Zieltext suchen …" [ngModel]="goalSearch()" (ngModelChange)="goalSearch.set($event)"></div>
+        @if (lessonDraft.goalKeys.length) { <div class="selected-goals">@for (key of lessonDraft.goalKeys; track key) { <button type="button" (click)="toggleGoal(key)">{{ goalKeyLabel(key) }} ×</button> }</div> }
+        <div class="goal-options">
+          @for (framework of frameworks; track framework.id) { <details><summary>{{ framework.shortName }} <span>{{ framework.goals.length }}</span></summary>@for (goal of framework.goals; track goal.id) { @if (goalMatches(goal.code, goal.text)) { <label><input type="checkbox" [checked]="lessonDraft.goalKeys.includes('js:' + framework.id + ':' + goal.id)" (change)="toggleGoal('js:' + framework.id + ':' + goal.id)"><b>{{ goal.code }}</b><span>{{ goal.text }}</span></label> } }</details> }
+          @for (category of customGoalsByCategory(); track category.id) { <details><summary>{{ category.name }} <span>{{ category.goals.length }}</span></summary>@for (goal of category.goals; track goal.id) { @if (goalMatches(goal.code || '', goal.text)) { <label><input type="checkbox" [checked]="lessonDraft.goalKeys.includes('custom:' + goal.id)" (change)="toggleGoal('custom:' + goal.id)"><b>{{ goal.code || '•' }}</b><span>{{ goal.text }}</span></label> } }</details> }
+        </div>
+      </section>
+      <div class="document-grid"><label>TN-Unterlagen<textarea name="participantDocs" rows="3" [(ngModel)]="lessonDraft.participantDocuments"></textarea></label><label>Kursmitarbeitenden-Unterlagen<textarea name="instructorDocs" rows="3" [(ngModel)]="lessonDraft.instructorDocuments"></textarea></label><label>Lehrmittelreferenzen<textarea name="teachingRefs" rows="3" [(ngModel)]="lessonDraft.teachingReferences"></textarea></label><label>Material<textarea name="material" rows="3" [(ngModel)]="lessonDraft.material"></textarea></label></div>
+      <section class="steps-editor"><div class="steps-head"><div><strong>Lektionsablauf</strong><span [class.warning]="stepTotal() !== lessonDraft.durationMinutes">{{ stepTotal() }} / {{ lessonDraft.durationMinutes }} Min.</span></div><button class="secondary" type="button" (click)="addStep()">Schritt hinzufügen</button></div>
+        @for (step of lessonDraft.steps; track step.id; let index = $index) { <article class="step-row"><span class="drag-handle">⋮⋮</span><label>ARIVA<select [name]="'phase-' + step.id" [(ngModel)]="step.arivaPhase"><option value="A">Ausrichten</option><option value="R">Reaktivieren</option><option value="I">Informieren</option><option value="V">Verarbeiten</option><option value="A2">Auswerten</option><option value="OTHER">Andere</option></select></label><label>Titel<input [name]="'step-title-' + step.id" [(ngModel)]="step.title"></label><label class="step-description">Beschreibung<textarea [name]="'step-description-' + step.id" rows="2" [(ngModel)]="step.description"></textarea></label><label>Min.<input [name]="'step-duration-' + step.id" type="number" min="0" [(ngModel)]="step.durationMinutes"></label><div class="step-actions"><button type="button" (click)="moveStep(index, -1)" [disabled]="index === 0">↑</button><button type="button" (click)="moveStep(index, 1)" [disabled]="index === lessonDraft.steps.length - 1">↓</button><button class="danger" type="button" (click)="removeStep(index)">×</button></div></article> }
+        @if (!lessonDraft.steps.length) { <p class="muted-box">Noch keine Ablaufschritte. Die Summe wird automatisch mit der Lektionsdauer verglichen.</p> }
+      </section>
+      @if (formError()) { <p class="form-error">{{ formError() }}</p> }<div class="modal-actions"><button class="secondary" type="button" (click)="closeModal()">Abbrechen</button><button class="primary" type="submit">Lektion speichern</button></div>
+    </form></section></div>
+  }
+
+  @if (modal() === 'placement') {
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="placement-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">{{ lesson(placementDraft.lessonId)?.title }}</p><h3 id="placement-title">{{ placementDraft.id ? 'Einplanung verschieben' : 'In Kurs einplanen' }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><form (ngSubmit)="savePlacement()"><label>Kurs<select name="placementCourse" [(ngModel)]="placementDraft.courseId" (ngModelChange)="placementCourseChanged()">@for (course of activeCourses(); track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label><div class="field-row"><label>Datum<input name="placementDate" type="date" [(ngModel)]="placementDraft.date"></label><label>Startzeit<input name="placementStart" type="time" step="900" [(ngModel)]="placementDraft.startTime"></label></div><label>Kursbezogener Ort<input name="placementLocation" [(ngModel)]="placementDraft.location"></label>@if (formError()) { <p class="form-error">{{ formError() }}</p> }<div class="modal-actions"><button class="secondary" type="button" (click)="closeModal()">Abbrechen</button><button class="primary" type="submit">{{ placementDraft.id ? 'Verschieben' : 'Einplanen' }}</button></div></form></section></div>
+  }
+
+  @if (modal() === 'actions' && activeActionPlacement(); as placement) {
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal action-modal" role="dialog" aria-modal="true" aria-label="Lektionsaktionen" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">{{ lessonCodeFor(placement.lessonId) }}</p><h3>{{ lesson(placement.lessonId)?.title }}</h3><p>{{ course(placement.courseId)?.name }} · {{ dateLabel(placement.date) }} · {{ placement.startTime }}</p></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><div class="action-list"><button type="button" (click)="actionEditLesson()"><span>✎</span><div><strong>Bearbeiten</strong><small>Inhalte global ändern</small></div></button><button type="button" (click)="actionMove()"><span>↕</span><div><strong>Einplanung verschieben</strong><small>Kurs, Datum, Zeit oder Ort ändern</small></div></button><button type="button" (click)="actionDuplicate()"><span>⧉</span><div><strong>Lektion duplizieren</strong><small>Unabhängige Kopie am gleichen Termin</small></div></button><button type="button" (click)="actionUseAgain()"><span>＋</span><div><strong>In weiterem Kurs verwenden</strong><small>Dieselbe globale Lektion erneut einplanen</small></div></button><button type="button" class="danger" (click)="actionRemove()"><span>−</span><div><strong>Diese Einplanung entfernen</strong><small>Lektion bleibt erhalten</small></div></button><button type="button" class="danger" (click)="actionDeleteEverywhere()"><span>×</span><div><strong>Lektion überall löschen</strong><small>Alle Einplanungen werden entfernt</small></div></button></div></section></div>
+  }
+
+  @if (modal() === 'detail' && detailLesson(); as lesson) {
+    <div class="modal-backdrop no-print" (click)="closeModal()"><section class="modal lesson-detail" role="dialog" aria-modal="true" aria-labelledby="detail-title" (click)="$event.stopPropagation()"><header><div><p class="eyebrow">Lektionsbeschrieb · {{ lessonCode(lesson) }}</p><h3 id="detail-title">{{ lesson.title }}</h3></div><button class="modal-close" type="button" (click)="closeModal()">×</button></header><div class="detail-actions"><button class="secondary" type="button" (click)="openLesson(lesson)">Bearbeiten</button><button class="primary" type="button" (click)="printLesson(lesson)">Drucken / PDF</button></div><div class="detail-kpis"><span><small>Dauer</small><strong>{{ lesson.durationMinutes }} Min.</strong></span><span><small>Ziele</small><strong>{{ lesson.goals.length }}</strong></span><span><small>Einplanungen</small><strong>{{ placementCount(lesson.id) }}</strong></span></div>@if (lesson.summary) { <p class="detail-summary">{{ lesson.summary }}</p> }<section><h4>Ziele</h4>@for (goal of lesson.goals; track goalReferenceKey(goal)) { <p class="goal-text">{{ goalLabel(goal) }}</p> } @empty { <p class="muted-box">Keine Ziele zugeordnet.</p> }</section><div class="detail-docs"><section><h4>TN-Unterlagen</h4><p>{{ lesson.participantDocuments || '—' }}</p></section><section><h4>Kursmitarbeitenden-Unterlagen</h4><p>{{ lesson.instructorDocuments || '—' }}</p></section><section><h4>Lehrmittel</h4><p>{{ lesson.teachingReferences || '—' }}</p></section><section><h4>Material</h4><p>{{ lesson.material || '—' }}</p></section></div><section><div class="steps-head"><h4>Ablauf</h4><span [class.warning]="lessonStepTotalValue(lesson) !== lesson.durationMinutes">{{ lessonStepTotalValue(lesson) }} / {{ lesson.durationMinutes }} Min.</span></div><div class="detail-steps">@for (step of lesson.steps; track step.id) { <article><b>{{ arivaLabel(step.arivaPhase) }}</b><div><strong>{{ step.title }}</strong><p>{{ step.description }}</p></div><span>{{ step.durationMinutes }}′</span></article> }</div></section></section></div>
+  }
+
+  @if (toast()) { <div class="toast no-print" role="status">{{ toast() }}</div> }
+
+  @if (printMode() === 'program' && activeEvent(); as event) {
+    <section class="print-sheet print-program">
+      <header><div><p>Trailbox · Kursprogramm</p><h1>{{ event.name }}</h1><span>{{ dateLabel(event.startDate, { day: '2-digit', month: 'long', year: 'numeric' }) }} – {{ dateLabel(event.endDate, { day: '2-digit', month: 'long', year: 'numeric' }) }}</span></div><strong>{{ printCourses().length }} Kurse</strong></header>
+      <div class="print-legend"><strong>Kategorien</strong>@for (category of categories; track category) { <span class="cat-{{ category }}"><b>{{ category }}</b></span> }</div>
+      @for (date of visibleDates(); track date) { <section class="print-day"><h2>{{ dateLabel(date, { weekday: 'long', day: '2-digit', month: 'long' }) }}</h2><div class="print-course-grid">@for (course of printCourses(); track course.id) { <article><h3>{{ course.name }} <small>{{ course.location }}</small></h3>@for (placement of columnPlacements(course.id, date); track placement.id) { @if (lesson(placement.lessonId); as lesson) { <div class="print-placement cat-{{ lesson.category }}"><time>{{ placement.startTime }}–{{ addMinutes(placement.startTime, lesson.durationMinutes) }}</time><b>{{ lessonCode(lesson) }}</b><span>{{ lesson.title }}</span><small>{{ placement.location || course.location }}</small></div> } } @empty { <p>Keine Lektionen</p> }</article> }</div></section> }
+    </section>
+  }
+
+  @if (printMode() === 'lesson') {
+    @for (lesson of selectedPrintLessons(); track lesson.id) {
+      <article class="print-sheet print-lesson">
+        <header><div><p>Trailbox · Lektionsbeschrieb</p><h1>{{ lessonCode(lesson) }} · {{ lesson.title }}</h1></div><strong>{{ lesson.durationMinutes }} Minuten</strong></header>
+        @if (lesson.summary) { <p class="lead">{{ lesson.summary }}</p> }
+        <section><h2>Ziele</h2>@for (goal of lesson.goals; track goalReferenceKey(goal)) { <p>{{ goalLabel(goal) }}</p> } @empty { <p>Keine Ziele zugeordnet.</p> }</section>
+        <div class="print-docs"><section><h2>TN-Unterlagen</h2><p>{{ lesson.participantDocuments || '—' }}</p></section><section><h2>Kursmitarbeitenden-Unterlagen</h2><p>{{ lesson.instructorDocuments || '—' }}</p></section><section><h2>Lehrmittel</h2><p>{{ lesson.teachingReferences || '—' }}</p></section><section><h2>Material</h2><p>{{ lesson.material || '—' }}</p></section></div>
+        <section><h2>Ablauf</h2><table><thead><tr><th>ARIVA</th><th>Inhalt</th><th>Dauer</th></tr></thead><tbody>@for (step of lesson.steps; track step.id) { <tr><td>{{ arivaLabel(step.arivaPhase) }}</td><td><strong>{{ step.title }}</strong><p>{{ step.description }}</p></td><td>{{ step.durationMinutes }} Min.</td></tr> }</tbody><tfoot><tr><th colspan="2">Gesamtdauer</th><th>{{ lessonStepTotalValue(lesson) }} Min.</th></tr></tfoot></table></section>
+        <footer>{{ lessonCode(lesson) }} · Trailbox Kursplaner</footer>
+      </article>
+    }
+  }
+</section>
+
