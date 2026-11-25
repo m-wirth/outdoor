@@ -16,6 +16,7 @@ import {
   ImportResult,
   mergeCoursePlannerStates,
   normalizeCoursePlannerState,
+  placementWithinCourse,
   uid
 } from './course-planner.utils';
 
@@ -132,6 +133,7 @@ export class CoursePlannerStore {
   }
 
   createPlacement(input: Pick<LessonPlacement, 'lessonId' | 'courseId' | 'date' | 'startTime' | 'location'>): LessonPlacement {
+    this.validatePlacement(input);
     const now = new Date().toISOString();
     const placement: LessonPlacement = { ...input, id: uid('placement'), createdAt: now, updatedAt: now };
     this.change((state) => state.placements.push(placement));
@@ -139,9 +141,12 @@ export class CoursePlannerStore {
   }
 
   updatePlacement(placementId: string, patch: Partial<Pick<LessonPlacement, 'courseId' | 'date' | 'startTime' | 'location' | 'laneOrder'>>): void {
+    const current = this.state().placements.find((item) => item.id === placementId);
+    if (!current) throw new Error('Einplanung nicht gefunden.');
+    this.validatePlacement({ ...current, ...patch });
     this.change((state) => {
-      const placement = state.placements.find((item) => item.id === placementId);
-      if (placement) Object.assign(placement, patch, { updatedAt: new Date().toISOString() });
+      const placement = state.placements.find((item) => item.id === placementId)!;
+      Object.assign(placement, patch, { updatedAt: new Date().toISOString() });
     });
   }
 
@@ -221,6 +226,14 @@ export class CoursePlannerStore {
 
   clear(): void {
     this.replace(structuredClone(EMPTY_COURSE_PLANNER_STATE));
+  }
+
+  private validatePlacement(input: Pick<LessonPlacement, 'lessonId' | 'courseId' | 'date' | 'startTime'>): void {
+    const state = this.state();
+    if (!state.lessons.some((item) => item.id === input.lessonId)) throw new Error('Lektion nicht gefunden.');
+    const course = state.courses.find((item) => item.id === input.courseId);
+    if (!course || !placementWithinCourse(input.date, course)) throw new Error('Das Datum liegt ausserhalb des Kurszeitraums.');
+    if (!/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(input.startTime)) throw new Error('Ungültige Startzeit.');
   }
 
   private load(): void {

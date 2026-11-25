@@ -16,6 +16,7 @@ import {
   PersonalPlannerFile,
   TrainingEvent
 } from './course-planner.models';
+import { PlannerStore } from './planner-store.service';
 import { CoursePlannerStore } from './course-planner-store.service';
 import {
   addMinutes,
@@ -29,12 +30,16 @@ import {
   lessonCode,
   lessonStepTotal,
   minutesFromTime,
+  placementWithinCourse,
   snapToQuarter,
   timeFromMinutes,
   trainingPreview,
   uid,
   validatePersonalPlanner
 } from './course-planner.utils';
+
+const SCHEDULE_DRAG_TYPE = 'application/x-trailbox-schedule';
+const PIXELS_PER_MINUTE = 0.8;
 
 type PlannerTab = 'events' | 'program' | 'lessons' | 'goals' | 'transfer';
 type Modal = 'event' | 'course' | 'lesson' | 'placement' | 'actions' | 'detail' | null;
@@ -97,6 +102,7 @@ const EMPTY_LESSON: LessonDraft = {
 })
 export class CoursePlannerComponent {
   readonly store = inject(CoursePlannerStore);
+  readonly personalPlanner = inject(PlannerStore);
   readonly categories = LESSON_CATEGORIES;
   readonly frameworks = JS_FRAMEWORKS;
   readonly tabs: Array<{ id: PlannerTab; label: string }> = [
@@ -126,7 +132,8 @@ export class CoursePlannerComponent {
   readonly selectedImportIds = signal<string[]>([]);
   readonly importAsCopy = signal(false);
   readonly backupMode = signal<'replace' | 'merge'>('merge');
-  readonly dragPayload = signal('');
+  readonly dropTarget = signal<{ courseId: string; date: string; startTime: string; top: number } | null>(null);
+  private drag: { type: 'lesson' | 'placement'; id: string; offset: number } | null = null;
 
   eventDraft: EventDraft = { ...EMPTY_EVENT };
   courseDraft: CourseDraft = { ...EMPTY_COURSE };
@@ -186,10 +193,15 @@ export class CoursePlannerComponent {
   readonly scheduleHeight = computed(() => (this.timelineEndHour() - this.timelineStartHour()) * 48);
   readonly activeActionPlacement = computed(() => this.state().placements.find((item) => item.id === this.actionPlacementId()) ?? null);
   readonly detailLesson = computed(() => this.state().lessons.find((item) => item.id === this.detailLessonId()) ?? null);
-  readonly coverage = computed(() => {
-    const rows = courseGoalCoverage(this.state(), this.coverageCourseId());
-    return this.coverageOnlyMissing() ? rows.filter((item) => item.lessons.length === 0) : rows;
+  readonly coverageCourse = computed<Course | undefined>(() => {
+    const courses = this.activeCourses();
+    return courses.find((course) => course.id === this.coverageCourseId()) ?? courses[0];
   });
+  readonly allCoverage = computed(() => courseGoalCoverage(this.state(), this.coverageCourse()?.id ?? ''));
+  readonly coveredGoalCount = computed(() => this.allCoverage().filter((row) => row.lessons.length > 0).length);
+  readonly coverage = computed(() => this.coverageOnlyMissing()
+    ? this.allCoverage().filter((row) => row.lessons.length === 0)
+    : this.allCoverage());
   readonly customGoalsByCategory = computed(() => this.state().customGoalCategories
     .slice().sort((left, right) => left.order - right.order)
     .map((category) => ({ ...category, goals: this.state().customGoals.filter((item) => item.categoryId === category.id).sort((left, right) => left.order - right.order) })));
@@ -202,7 +214,7 @@ export class CoursePlannerComponent {
 
   @HostListener('document:keydown.escape')
   cancelCurrentAction(): void {
-    this.dragPayload.set('');
+    this.endScheduleDrag();
     if (this.modal()) this.closeModal();
   }
 
@@ -366,7 +378,7 @@ export class CoursePlannerComponent {
     this.formError.set('');
     this.placementDraft = placement
       ? { id: placement.id, lessonId: placement.lessonId, courseId: placement.courseId, date: placement.date, startTime: placement.startTime, location: placement.location }
-      : { lessonId, courseId: firstCourse.id, date: this.focusedDate() || event.startDate, startTime: '08:00', location: firstCourse.location };
+      : { lessonId, courseId: firstCourse.id, date: placementWithinCourse(this.focusedDate(), firstCourse) ? this.focusedDate() : firstCourse.startDate, startTime: '08:00', location: firstCourse.location };
     this.modal.set('placement');
   }
 
@@ -374,9 +386,14 @@ export class CoursePlannerComponent {
     const draft = this.placementDraft;
     const course = this.course(draft.courseId);
     if (!draft.lessonId || !course || !draft.date || !draft.startTime) return this.formError.set('Kurs, Datum und Startzeit sind Pflichtfelder.');
-    if (draft.date < course.startDate || draft.date > course.endDate) return this.formError.set('Das Datum liegt ausserhalb des Kurszeitraums.');
-    if (draft.id) this.store.updatePlacement(draft.id, { courseId: draft.courseId, date: draft.date, startTime: draft.startTime, location: draft.location.trim() });
-    else this.store.createPlacement({ lessonId: draft.lessonId, courseId: draft.courseId, date: draft.date, startTime: draft.startTime, location: draft.location.trim() });
+    const input = { lessonId: draft.lessonId, courseId: draft.courseId, date: draft.date, startTime: draft.startTime, location: draft.location.trim() };
+    try {
+      if (draft.id) this.store.updatePlacement(draft.id, { courseId: draft.courseId, date: draft.date, startTime: draft.startTime, location: input.location });
+      else this.store.createPlacement(input);
+    } catch (error) {
+      this.formError.set(error instanceof Error ? error.message : 'Einplanung konnte nicht gespeichert werden.');
+      return;
+    }
     this.closeModal();
     this.notify(draft.id ? 'Einplanung verschoben.' : 'Lektion eingeplant.');
   }
@@ -442,34 +459,69 @@ export class CoursePlannerComponent {
   }
 
   startLessonDrag(event: DragEvent, lessonId: string): void {
-    this.setDrag(event, `lesson:${lessonId}`);
+    this.setDrag(event, 'lesson', lessonId, 0);
   }
 
   startPlacementDrag(event: DragEvent, placementId: string): void {
-    this.setDrag(event, `placement:${placementId}`);
+    const card = event.currentTarget as HTMLElement;
+    const offset = Math.max(0, event.clientY - card.getBoundingClientRect().top);
+    this.setDrag(event, 'placement', placementId, offset);
   }
 
-  allowDrop(event: DragEvent): void {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = this.dragPayload().startsWith('placement:') ? 'move' : 'copy';
+  endScheduleDrag(): void {
+    this.drag = null;
+    this.dropTarget.set(null);
   }
 
-  dropOnTrack(event: DragEvent, courseId: string, date: string): void {
+  canDropOnDate(course: Course, date: string): boolean {
+    return placementWithinCourse(date, course);
+  }
+
+  previewDrop(event: DragEvent, course: Course, date: string): void {
+    const target = this.scheduleDropTarget(event, course, date);
+    this.dropTarget.set(target);
+    if (!target) return;
     event.preventDefault();
-    const track = event.currentTarget as HTMLElement;
-    const y = event.clientY - track.getBoundingClientRect().top;
-    const minutes = Math.max(this.timelineStartHour() * 60, Math.min(this.timelineEndHour() * 60 - 15, snapToQuarter((y / 0.8) + this.timelineStartHour() * 60)));
-    const startTime = timeFromMinutes(minutes);
-    const payload = event.dataTransfer?.getData('text/plain') || this.dragPayload();
-    if (payload.startsWith('placement:')) {
-      this.store.updatePlacement(payload.slice(10), { courseId, date, startTime });
-      this.notify('Einplanung verschoben und gespeichert.');
-    } else if (payload.startsWith('lesson:')) {
-      const course = this.course(courseId);
-      this.store.createPlacement({ lessonId: payload.slice(7), courseId, date, startTime, location: course?.location ?? '' });
-      this.notify('Lektion eingeplant und gespeichert.');
+    if (event.dataTransfer) event.dataTransfer.dropEffect = this.drag?.type === 'placement' ? 'move' : 'copy';
+  }
+
+  leaveDropTrack(event: DragEvent): void {
+    const next = event.relatedTarget;
+    if (!(next instanceof Node) || !(event.currentTarget as HTMLElement).contains(next)) this.dropTarget.set(null);
+  }
+
+  dropOnTrack(event: DragEvent, course: Course, date: string): void {
+    const drag = this.drag;
+    const target = this.scheduleDropTarget(event, course, date);
+    this.endScheduleDrag();
+    if (!drag || !target) return;
+    event.preventDefault();
+    try {
+      const { courseId, startTime } = target;
+      if (drag.type === 'placement') {
+        const placement = this.state().placements.find((item) => item.id === drag.id);
+        const oldCourse = placement && this.course(placement.courseId);
+        const location = oldCourse?.id !== courseId && placement?.location === oldCourse?.location
+          ? course.location : placement?.location;
+        this.store.updatePlacement(drag.id, { courseId, date, startTime, location: location ?? '' });
+        this.notify('Einplanung verschoben.');
+      } else {
+        this.store.createPlacement({ lessonId: drag.id, courseId, date, startTime, location: course.location });
+        this.notify('Lektion eingeplant.');
+      }
+    } catch (error) {
+      this.notify(error instanceof Error ? error.message : 'Einplanung konnte nicht gespeichert werden.');
     }
-    this.dragPayload.set('');
+  }
+
+  private scheduleDropTarget(event: DragEvent, course: Course, date: string) {
+    if (!this.drag || !event.dataTransfer?.types.includes(SCHEDULE_DRAG_TYPE) || !this.canDropOnDate(course, date)) return null;
+    const track = event.currentTarget as HTMLElement;
+    const offset = event.clientY - track.getBoundingClientRect().top - this.drag.offset;
+    const start = this.timelineStartHour() * 60;
+    const latest = Math.min(24, this.timelineEndHour()) * 60 - 15;
+    const minutes = Math.max(start, Math.min(latest, snapToQuarter(offset / PIXELS_PER_MINUTE + start)));
+    return { courseId: course.id, date, startTime: timeFromMinutes(minutes), top: (minutes - start) * PIXELS_PER_MINUTE };
   }
 
   columnPlacements(courseId: string, date: string): LessonPlacement[] {
@@ -614,14 +666,29 @@ export class CoursePlannerComponent {
 
   coverageCourseChanged(): void { this.coverageOnlyMissing.set(false); }
 
+  previewCurrentPersonalPlanner(): void {
+    if (!this.personalPlanner.ready()) return;
+    try {
+      this.previewPersonalPlanner(this.personalPlanner.state());
+    } catch (error) {
+      this.personalPlannerPreview.set(null);
+      this.notify(error instanceof Error ? error.message : 'Die Trainings konnten nicht gelesen werden.');
+    }
+  }
+
+  private previewPersonalPlanner(input: unknown): void {
+    const parsed = validatePersonalPlanner(input);
+    this.personalPlannerPreview.set(parsed);
+    this.selectedImportIds.set(parsed.trainings.map((item) => item.id));
+    this.importAsCopy.set(false);
+    this.notify(parsed.trainings.length ? `${parsed.trainings.length} Kursveranstaltungen geprüft.` : 'Keine Trainings im Personalplaner gefunden.');
+  }
+
   async readPersonalPlanner(event: Event): Promise<void> {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     try {
-      const parsed = validatePersonalPlanner(JSON.parse(await file.text()));
-      this.personalPlannerPreview.set(parsed);
-      this.selectedImportIds.set(parsed.trainings.map((item) => item.id));
-      this.notify(`${parsed.trainings.length} Kursveranstaltungen geprüft.`);
+      this.previewPersonalPlanner(JSON.parse(await file.text()));
     } catch (error) {
       this.personalPlannerPreview.set(null);
       this.notify(error instanceof Error ? error.message : 'Datei konnte nicht gelesen werden.');
@@ -636,10 +703,14 @@ export class CoursePlannerComponent {
   runPersonalPlannerImport(): void {
     const file = this.personalPlannerPreview();
     if (!file || !this.selectedImportIds().length) return;
-    const result = this.store.importPersonalPlanner(file, this.selectedImportIds(), this.importAsCopy());
-    this.personalPlannerPreview.set(null);
-    this.notify(`${result.createdEvents} neu, ${result.updatedEvents} aktualisiert · ${result.createdCourses} Kurse ergänzt.`);
-    this.openTab('events');
+    try {
+      const result = this.store.importPersonalPlanner(file, this.selectedImportIds(), this.importAsCopy());
+      this.personalPlannerPreview.set(null);
+      this.notify(`Veranstaltungen: ${result.createdEvents} neu, ${result.updatedEvents} aktualisiert. Kurse: ${result.createdCourses} neu, ${result.updatedCourses} aktualisiert.`);
+      this.openTab('events');
+    } catch (error) {
+      this.notify(error instanceof Error ? error.message : 'Import fehlgeschlagen.');
+    }
   }
 
   exportBackup(): void {
@@ -695,10 +766,11 @@ export class CoursePlannerComponent {
     this.formError.set('');
   }
 
-  private setDrag(event: DragEvent, payload: string): void {
-    this.dragPayload.set(payload);
-    event.dataTransfer?.setData('text/plain', payload);
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = payload.startsWith('placement:') ? 'move' : 'copy';
+  private setDrag(event: DragEvent, type: 'lesson' | 'placement', id: string, offset: number): void {
+    if (!event.dataTransfer) return;
+    this.drag = { type, id, offset };
+    event.dataTransfer.setData(SCHEDULE_DRAG_TYPE, id);
+    event.dataTransfer.effectAllowed = type === 'placement' ? 'move' : 'copy';
   }
 
   private referenceFromKey(key: string): GoalReference | null {

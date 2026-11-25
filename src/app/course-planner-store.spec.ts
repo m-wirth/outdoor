@@ -22,6 +22,8 @@ describe('CoursePlannerStore', () => {
     store.updatePlacement(placement.id, { courseId: tlk.id, startTime: '09:15' });
     expect(store.state().placements).toHaveLength(1);
     expect(store.state().placements[0]).toMatchObject({ id: placement.id, courseId: tlk.id, startTime: '09:15' });
+    expect(() => store.updatePlacement(placement.id, { date: '2026-10-11' })).toThrow('ausserhalb');
+    expect(store.state().placements[0].date).toBe(event.startDate);
   });
 
   it('verhindert Kursdaten ausserhalb der Kursveranstaltung', () => {

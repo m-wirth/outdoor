@@ -28,7 +28,7 @@
         <article class="empty-state">
           <div class="empty-art" aria-hidden="true"><span>Mo</span><span>Di</span><span>Mi</span></div>
           <div><p class="eyebrow">Noch ist alles frei</p><h4>Plane deinen ersten Kurs</h4><p>Erstelle die Veranstaltung manuell oder importiere sie aus dem Personalplaner.</p></div>
-          <div class="button-row"><button class="primary" type="button" (click)="openEvent()">Manuell erstellen</button><button class="secondary" type="button" (click)="openTab('transfer')">JSON importieren</button></div>
+          <div class="button-row"><button class="primary" type="button" (click)="openEvent()">Manuell erstellen</button><button class="secondary" type="button" (click)="openTab('transfer')">Aus Personalplaner importieren</button></div>
         </article>
       } @else {
         <div class="event-grid">
@@ -39,7 +39,7 @@
                 <span class="event-copy"><small>{{ dateLabel(event.startDate, { day: '2-digit', month: '2-digit', year: 'numeric' }) }} – {{ dateLabel(event.endDate, { day: '2-digit', month: '2-digit', year: 'numeric' }) }}</small><strong>{{ event.name }}</strong><span>{{ eventCourses(event.id).length }} Kurse · {{ eventPlacementCount(event.id) }} Einplanungen</span></span>
               </button>
               <div class="event-actions">
-                @if (event.source) { <span class="source-tag">Personalplaner</span> }
+                @if (event.source) { <span class="source-tag">{{ event.source.independentCopy ? 'Personalplaner-Kopie' : 'Personalplaner' }}</span> }
                 <button type="button" (click)="selectEvent(event.id); openEvent(event)" aria-label="Kursveranstaltung bearbeiten">Bearbeiten</button>
                 <button class="danger" type="button" (click)="deleteEvent(event)" aria-label="Kursveranstaltung löschen">Löschen</button>
               </div>
@@ -101,7 +101,7 @@
             <input type="search" placeholder="Lektion suchen …" [ngModel]="lessonSearch()" (ngModelChange)="lessonSearch.set($event)">
             <div class="drawer-list">
               @for (lesson of unplannedLessons(); track lesson.id) {
-                <article class="drawer-lesson" draggable="true" (dragstart)="startLessonDrag($event, lesson.id)">
+                <article class="drawer-lesson" draggable="true" (dragstart)="startLessonDrag($event, lesson.id)" (dragend)="endScheduleDrag()">
                   <span class="category-badge cat-{{ lesson.category }}">{{ lessonCode(lesson) || lesson.category }}</span>
                   <div><strong>{{ lesson.title }}</strong><small>{{ lesson.durationMinutes }} Min. · ziehen oder auswählen</small></div>
                   <button type="button" (click)="openPlacement(lesson.id)" aria-label="Lektion einplanen">+</button>
@@ -131,11 +131,16 @@
                 @for (date of visibleDates(); track date) {
                   <div class="day-tracks" [style.width.px]="programCourses().length * 220" [style.height.px]="scheduleHeight()">
                     @for (course of programCourses(); track course.id) {
-                      <div class="course-track" [style.height.px]="scheduleHeight()" (dragover)="allowDrop($event)" (drop)="dropOnTrack($event, course.id, date)">
+                      <div class="course-track" [style.height.px]="scheduleHeight()" [class.track-unavailable]="!canDropOnDate(course, date)" (dragover)="previewDrop($event, course, date)" (dragleave)="leaveDropTrack($event)" (drop)="dropOnTrack($event, course, date)">
                         @for (hour of timelineHours(); track hour) { <i class="hour-line" [style.top.px]="(hour - timelineStartHour()) * 48"></i> }
+                        @if (dropTarget(); as target) {
+                          @if (target.courseId === course.id && target.date === date) {
+                            <div class="drop-marker" [style.top.px]="target.top">{{ target.startTime }}</div>
+                          }
+                        }
                         @for (placement of columnPlacements(course.id, date); track placement.id) {
                           @if (lesson(placement.lessonId); as lesson) {
-                            <article class="lesson-card cat-{{ lesson.category }}" draggable="true" [ngStyle]="placementStyle(placement, columnPlacements(course.id, date))" (dragstart)="startPlacementDrag($event, placement.id)" (contextmenu)="openPlacementActions(placement, $event)" (dblclick)="openDetail(lesson)">
+                            <article class="lesson-card cat-{{ lesson.category }}" draggable="true" [ngStyle]="placementStyle(placement, columnPlacements(course.id, date))" (dragstart)="startPlacementDrag($event, placement.id)" (dragend)="endScheduleDrag()" (contextmenu)="openPlacementActions(placement, $event)" (dblclick)="openDetail(lesson)">
                               <button class="card-menu" type="button" (click)="openPlacementActions(placement, $event)" aria-label="Lektionsaktionen">•••</button>
                               <div class="card-meta"><strong>{{ placement.startTime }}–{{ addMinutes(placement.startTime, lesson.durationMinutes) }}</strong>@if (placementCount(lesson.id) > 1) { <span title="Kursübergreifend verwendet">⛓ {{ placementCount(lesson.id) }}</span> }</div>
                               <b>{{ lessonCode(lesson) }} · {{ lesson.title }}</b>
@@ -184,12 +189,30 @@
       <div class="goal-layout">
         <section class="goal-panel coverage-panel">
           <div class="panel-heading"><div><p class="eyebrow">Orientierungsrahmen</p><h4>Zielabdeckung</h4></div><label class="switch"><input type="checkbox" [checked]="coverageOnlyMissing()" (change)="coverageOnlyMissing.set(!coverageOnlyMissing())"><span>Nur offene</span></label></div>
-          <label>Kurs<select [ngModel]="coverageCourseId()" (ngModelChange)="coverageCourseId.set($event); coverageCourseChanged()"><option value="">Kurs wählen</option>@for (course of activeCourses(); track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label>
-          @if (!coverageCourseId()) { <p class="muted-box">Wähle einen Kurs mit Orientierungsrahmen.</p> }
+          <label>Kurs<select [ngModel]="coverageCourse()?.id || ''" (ngModelChange)="coverageCourseId.set($event); coverageCourseChanged()"><option value="">Kurs wählen</option>@for (course of activeCourses(); track course.id) { <option [value]="course.id">{{ course.name }}</option> }</select></label>
+          @if (!coverageCourse()) {
+            <p class="muted-box">Für diese Veranstaltung ist noch kein Kurs angelegt.</p>
+          } @else if (!allCoverage().length) {
+            <p class="muted-box">Wähle im Kurs einen J+S-Orientierungsrahmen oder lege eigene Ziele an.</p>
+          } @else {
+            <p role="status">{{ coveredGoalCount() }} von {{ allCoverage().length }} Zielen abgedeckt</p>
+            @if (coverageOnlyMissing() && !coverage().length) { <p class="muted-box">Alle Ziele sind abgedeckt.</p> }
+          }
           <div class="coverage-list">
-            @for (row of coverage(); track row.goalId) {
+            @for (row of coverage(); track row.key) {
               <article [class.covered]="row.lessons.length">
-                <span>{{ row.code }}</span><div><p>{{ row.text }}</p>@if (row.lessons.length) { <small>{{ row.lessons.length }}× · @for (lesson of row.lessons; track lesson.id; let last = $last) { {{ lessonCode(lesson) }}{{ last ? '' : ', ' }} }</small> } @else { <small>Noch nicht abgedeckt</small> }</div>
+                <span>{{ row.code || '•' }}</span>
+                <div>
+                  <small>{{ row.group }}</small>
+                  <p>{{ row.text }}</p>
+                  @if (row.lessons.length) {
+                    <div class="coverage-lessons">
+                      @for (lesson of row.lessons; track lesson.id) {
+                        <button class="text-button" type="button" (click)="openDetail(lesson)">{{ lessonCode(lesson) }} · {{ lesson.title }}</button>
+                      }
+                    </div>
+                  } @else { <small>Noch nicht abgedeckt</small> }
+                </div>
               </article>
             }
           </div>
@@ -228,6 +251,7 @@
       <div class="transfer-grid">
         <section class="transfer-card featured">
           <span class="transfer-number">01</span><p class="eyebrow">Personalplaner</p><h4>Kursstruktur importieren</h4><p>Trainings und Unterkurse werden vor dem Import geprüft. Bestehende Einplanungen bleiben bei Aktualisierungen erhalten.</p>
+          <button class="primary" type="button" [disabled]="!personalPlanner.ready()" (click)="previewCurrentPersonalPlanner()">Aktuelle Trainings laden</button>
           <label class="file-button">JSON-Datei auswählen<input type="file" accept="application/json,.json" (change)="readPersonalPlanner($event)"></label>
           @if (personalPlannerPreview(); as preview) {
             <div class="import-preview">

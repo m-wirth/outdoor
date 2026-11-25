@@ -1,3 +1,5 @@
+import type { PlannerState, Training } from './planner.models';
+
 export type LocalDate = string;
 export type LocalTime = string;
 export type LessonCategory = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P';
@@ -16,6 +18,7 @@ export interface TrainingEvent {
     trainingId: string;
     importedAt: string;
     sourceUpdatedAt?: string;
+    independentCopy?: boolean;
   };
   createdAt: string;
   updatedAt: string;
@@ -123,21 +126,11 @@ export interface JsFramework {
   goals: JsGoal[];
 }
 
-export interface PersonalPlannerTraining {
-  id: string;
-  name: string;
-  startDate: LocalDate;
-  endDate: LocalDate;
-  mainInstructor?: string;
-  subTrainings?: Array<{ id: string; name: string; instructors?: unknown[] }>;
-  people?: unknown[];
-  presence?: Record<string, unknown>;
-  absences?: unknown[];
-  updatedAt?: string;
-}
+export type PersonalPlannerTraining = Pick<Training, 'id' | 'name' | 'startDate' | 'endDate'>
+  & Partial<Pick<Training, 'mainInstructor' | 'subTrainings' | 'updatedAt'>>;
 
 export interface PersonalPlannerFile {
-  version: number;
+  version: PlannerState['version'];
   trainings: PersonalPlannerTraining[];
 }
 

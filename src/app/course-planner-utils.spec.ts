@@ -21,7 +21,7 @@ const plannerFile = {
     endDate: '2026-10-10',
     mainInstructor: 'Marco Wirth',
     subTrainings: [
-      { id: 'glk', name: 'GLK', instructors: [] },
+      { id: 'glk', name: 'GLK', instructors: [] as string[] },
       { id: 'tlk', name: 'TLK', instructors: [] },
       { id: 'quem', name: 'QUEM', instructors: [] }
     ],
@@ -35,6 +35,34 @@ describe('Personalplaner-Import', () => {
       .toThrow('trainings[0].startDate fehlt');
     expect(() => validatePersonalPlanner({ version: 1, trainings: [{ id: 'x', name: 'Test', startDate: 'falsch', endDate: '2026-10-03' }] }))
       .toThrow('trainings[0].startDate ist kein gültiges Datum');
+  });
+
+  it('übernimmt die Kursstruktur aus dem aktuellen Datenformat ohne Personen- und Absenzenlisten', () => {
+    const current = structuredClone(plannerFile);
+    current.trainings[0].subTrainings[0].instructors = ['Leitung'];
+    const parsed = validatePersonalPlanner(current);
+    expect(parsed.trainings[0].subTrainings?.[0].instructors).toEqual(['Leitung']);
+    expect(parsed.trainings[0]).not.toHaveProperty('people');
+    expect(parsed.trainings[0]).not.toHaveProperty('presence');
+    expect(parsed.trainings[0]).not.toHaveProperty('absences');
+  });
+
+  it('erhält eine zuerst importierte Kopie bei regulären Aktualisierungen', () => {
+    const parsed = validatePersonalPlanner(plannerFile);
+    const copy = importPersonalPlanner(EMPTY_COURSE_PLANNER_STATE, parsed, ['training-1'], true);
+    const original = importPersonalPlanner(copy.state, parsed, ['training-1']);
+    const changed = validatePersonalPlanner({ ...plannerFile, trainings: [{ ...plannerFile.trainings[0], name: 'Neuer Name' }] });
+    const updated = importPersonalPlanner(original.state, changed, ['training-1']);
+    expect(updated.state.trainingEvents.map((item) => item.name)).toEqual(['GTQ 2026-2', 'Neuer Name']);
+  });
+
+  it('weist eine Terminänderung zurück, wenn sie Einplanungen ausserhalb des Kurses hinterlässt', () => {
+    const parsed = validatePersonalPlanner(plannerFile);
+    const initial = importPersonalPlanner(EMPTY_COURSE_PLANNER_STATE, parsed, ['training-1']);
+    initial.state.placements.push(placement('p1', 'l1', initial.state.courses[0].id));
+    const shortened = validatePersonalPlanner({ ...plannerFile, trainings: [{ ...plannerFile.trainings[0], startDate: '2026-10-04' }] });
+    expect(() => importPersonalPlanner(initial.state, shortened, ['training-1'])).toThrow('bestehenden Einplanungen');
+    expect(initial.state.trainingEvents[0].startDate).toBe('2026-10-03');
   });
 
   it('bildet ein Training auf eine Veranstaltung mit drei parallelen Kursen ab', () => {
@@ -103,6 +131,22 @@ describe('Kursplaner-Berechnungen', () => {
     const coverage = courseGoalCoverage(state, 'c1');
     expect(coverage.find((row) => row.code === '1.1')?.lessons.map((value) => value.id)).toEqual(['l1']);
     expect(coverage.some((row) => row.lessons.length === 0)).toBe(true);
+  });
+
+  it('zeigt eigene Ziele auch ohne J+S-Rahmen und zählt dieselbe Lektion nur einmal', () => {
+    const state = structuredClone(EMPTY_COURSE_PLANNER_STATE);
+    state.courses.push({ id: 'c1', trainingEventId: 'e1', name: 'GLK', startDate: '2026-10-03', endDate: '2026-10-10', location: '', createdAt: '', updatedAt: '' });
+    state.customGoalCategories.push({ id: 'cat', name: 'Verband', color: '#47745a', order: 0 });
+    state.customGoals.push(
+      { id: 'g1', categoryId: 'cat', text: 'Abgedecktes Ziel', order: 0 },
+      { id: 'g2', categoryId: 'cat', text: 'Offenes Ziel', order: 1 }
+    );
+    const item = lesson('l1');
+    item.goals = [{ type: 'custom', goalId: 'g1' }];
+    state.lessons.push(item);
+    state.placements.push(placement('p1', 'l1', 'c1'), placement('p2', 'l1', 'c1', '10:00'));
+    expect(courseGoalCoverage(state, 'c1').map((row) => [row.key, row.lessons.length]))
+      .toEqual([['custom:g1', 1], ['custom:g2', 0]]);
   });
 
   it('validiert und führt Backups anhand interner IDs zusammen', () => {

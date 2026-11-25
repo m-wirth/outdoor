@@ -102,3 +102,27 @@ label > span { font-weight: 600; }
   @page { size: A4 landscape; margin: 5mm; }
 }
 
+
+.course-track.track-unavailable {
+  background-color: #ecefe9;
+  background-image: repeating-linear-gradient(135deg, transparent 0 7px, #e0e5dd 7px 8px);
+}
+
+.drop-marker {
+  position: absolute;
+  z-index: 4;
+  inset-inline: 0;
+  padding: 0 .35rem;
+  border-top: 2px solid var(--forest);
+  color: var(--forest);
+  background: #edf5ee;
+  font-size: .72rem;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.coverage-lessons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .65rem;
+}

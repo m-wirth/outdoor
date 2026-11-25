@@ -125,11 +125,16 @@ export function validatePersonalPlanner(input: unknown): PersonalPlannerFile {
   const root = input as Record<string, unknown>;
   if (root['version'] !== 1) throw new Error('version muss 1 sein.');
   if (!Array.isArray(root['trainings'])) throw new Error('trainings fehlt oder ist keine Liste.');
-  root['trainings'].forEach((item, index) => validatePersonalPlannerTraining(item, `trainings[${index}]`));
-  return input as PersonalPlannerFile;
+  const trainings = root['trainings'].map((item, index) => validatePersonalPlannerTraining(item, `trainings[${index}]`));
+  requireUniqueIds(trainings, 'trainings');
+  return { version: 1, trainings };
 }
 
-function validatePersonalPlannerTraining(input: unknown, path: string): void {
+function requireUniqueIds(items: { id: string }[], path: string): void {
+  if (new Set(items.map((item) => item.id)).size !== items.length) throw new Error(`${path} enthält doppelte IDs.`);
+}
+
+function validatePersonalPlannerTraining(input: unknown, path: string): PersonalPlannerTraining {
   if (!input || typeof input !== 'object') throw new Error(`${path} ist ungültig.`);
   const item = input as Record<string, unknown>;
   for (const field of ['id', 'name', 'startDate', 'endDate']) {
@@ -139,15 +144,23 @@ function validatePersonalPlannerTraining(input: unknown, path: string): void {
   if (!isLocalDate(String(item['endDate']))) throw new Error(`${path}.endDate ist kein gültiges Datum.`);
   if (String(item['endDate']) < String(item['startDate'])) throw new Error(`${path}.endDate liegt vor startDate.`);
   if (item['subTrainings'] !== undefined && !Array.isArray(item['subTrainings'])) throw new Error(`${path}.subTrainings ist keine Liste.`);
-  (item['subTrainings'] as unknown[] | undefined)?.forEach((course, courseIndex) => {
+  const subTrainings = (item['subTrainings'] as unknown[] | undefined)?.map((course, courseIndex) => {
     if (!course || typeof course !== 'object') throw new Error(`${path}.subTrainings[${courseIndex}] ist ungültig.`);
     const row = course as Record<string, unknown>;
     if (typeof row['id'] !== 'string' || !row['id']) throw new Error(`${path}.subTrainings[${courseIndex}].id fehlt.`);
-    if (typeof row['name'] !== 'string' || !row['name']) throw new Error(`${path}.subTrainings[${courseIndex}].name fehlt.`);
+    if (typeof row['name'] !== 'string' || !row['name'].trim()) throw new Error(`${path}.subTrainings[${courseIndex}].name fehlt.`);
+    const instructors = row['instructors'] ?? [];
+    if (!Array.isArray(instructors) || instructors.some((name) => typeof name !== 'string')) {
+      throw new Error(`${path}.subTrainings[${courseIndex}].instructors enthält ungültige Namen.`);
+    }
+    return { id: row['id'], name: row['name'], instructors: [...instructors] };
   });
-  if (item['people'] !== undefined && !Array.isArray(item['people'])) throw new Error(`${path}.people ist keine Liste.`);
-  if (item['presence'] !== undefined && (!item['presence'] || typeof item['presence'] !== 'object' || Array.isArray(item['presence']))) throw new Error(`${path}.presence ist ungültig.`);
-  if (item['absences'] !== undefined && !Array.isArray(item['absences'])) throw new Error(`${path}.absences ist keine Liste.`);
+  requireUniqueIds(subTrainings ?? [], `${path}.subTrainings`);
+  for (const field of ['mainInstructor', 'updatedAt']) {
+    if (item[field] !== undefined && typeof item[field] !== 'string') throw new Error(`${path}.${field} ist ungültig.`);
+  }
+  const { id, name, startDate, endDate, mainInstructor, updatedAt } = item as unknown as PersonalPlannerTraining;
+  return { id, name, startDate, endDate, mainInstructor, updatedAt, subTrainings };
 }
 
 export function importPersonalPlanner(
@@ -159,13 +172,14 @@ export function importPersonalPlanner(
   now = new Date().toISOString()
 ): ImportResult {
   const state = structuredClone(current);
+  const importedEventIds = new Set<string>();
   let createdEvents = 0;
   let updatedEvents = 0;
   let createdCourses = 0;
   let updatedCourses = 0;
 
   for (const training of input.trainings.filter((item) => selectedTrainingIds.includes(item.id))) {
-    let event = asCopy ? undefined : state.trainingEvents.find((item) => item.source?.trainingId === training.id);
+    let event = asCopy ? undefined : state.trainingEvents.find((item) => item.source?.trainingId === training.id && !item.source.independentCopy);
     if (!event) {
       event = {
         id: makeId('event'),
@@ -173,7 +187,7 @@ export function importPersonalPlanner(
         startDate: training.startDate,
         endDate: training.endDate,
         mainInstructor: training.mainInstructor ?? '',
-        source: { type: 'personal-planner', version: input.version, trainingId: training.id, importedAt: now, sourceUpdatedAt: training.updatedAt },
+        source: { type: 'personal-planner', version: input.version, trainingId: training.id, importedAt: now, sourceUpdatedAt: training.updatedAt, independentCopy: asCopy },
         createdAt: now,
         updatedAt: now
       };
@@ -191,6 +205,7 @@ export function importPersonalPlanner(
       updatedEvents++;
     }
 
+    importedEventIds.add(event.id);
     const subTrainings = training.subTrainings?.length
       ? training.subTrainings
       : [{ id: `${training.id}:default`, name: training.name, instructors: [] }];
@@ -221,6 +236,15 @@ export function importPersonalPlanner(
     }
   }
 
+  for (const course of state.courses) {
+    const event = state.trainingEvents.find((item) => item.id === course.trainingEventId);
+    if (!event || !importedEventIds.has(event.id)) continue;
+    if (!courseWithinEvent(course, event) || state.placements.some((item) =>
+      item.courseId === course.id && !placementWithinCourse(item.date, course)
+    )) {
+      throw new Error(`«${event.name}» kann nicht aktualisiert werden. Der neue Zeitraum kollidiert mit dem Kurs oder bestehenden Einplanungen von «${course.name}».`);
+    }
+  }
   state.updatedAt = now;
   return { state, createdEvents, updatedEvents, createdCourses, updatedCourses };
 }
@@ -263,19 +287,37 @@ export function goalReferenceKey(reference: GoalReference): string {
   return reference.type === 'js' ? `js:${reference.frameworkId}:${reference.goalId}` : `custom:${reference.goalId}`;
 }
 
-export function courseGoalCoverage(state: CoursePlannerState, courseId: string): Array<{ goalId: string; code: string; text: string; lessons: Lesson[] }> {
+export function courseGoalCoverage(state: CoursePlannerState, courseId: string) {
   const course = state.courses.find((item) => item.id === courseId);
-  if (!course?.frameworkId) return [];
-  const framework = FRAMEWORK_BY_ID.get(course.frameworkId);
-  if (!framework) return [];
+  if (!course) return [];
+  const framework = course.frameworkId ? FRAMEWORK_BY_ID.get(course.frameworkId) : undefined;
   const lessonIds = new Set(state.placements.filter((item) => item.courseId === courseId).map((item) => item.lessonId));
-  const lessons = state.lessons.filter((item) => lessonIds.has(item.id));
-  return framework.goals.map((goal) => ({
-    goalId: goal.id,
-    code: goal.code,
-    text: goal.text,
-    lessons: lessons.filter((lesson) => lesson.goals.some((reference) => reference.type === 'js' && reference.frameworkId === course.frameworkId && reference.goalId === goal.id))
+  const lessonsByGoal = new Map<string, Lesson[]>();
+  for (const lesson of state.lessons.filter((item) => lessonIds.has(item.id))) {
+    for (const key of new Set(lesson.goals.map(goalReferenceKey))) {
+      const lessons = lessonsByGoal.get(key) ?? [];
+      lessons.push(lesson);
+      lessonsByGoal.set(key, lessons);
+    }
+  }
+
+  const groups = state.customGoalCategories.slice().sort((left, right) => left.order - right.order);
+  const custom = groups.flatMap((category) => state.customGoals
+    .filter((goal) => goal.categoryId === category.id)
+    .sort((left, right) => left.order - right.order)
+    .map((goal) => ({ ...goal, code: goal.code ?? '', key: `custom:${goal.id}`, group: category.name })));
+  const standard = framework?.goals.map((goal) => ({
+    ...goal, key: `js:${framework.id}:${goal.id}`, group: framework.shortName
+  })) ?? [];
+
+  return [...standard, ...custom].map((goal) => ({
+    goalId: goal.id, key: goal.key, group: goal.group, code: goal.code, text: goal.text,
+    lessons: lessonsByGoal.get(goal.key) ?? []
   }));
+}
+
+export function placementWithinCourse(date: string, course: Pick<Course, 'startDate' | 'endDate'>): boolean {
+  return isLocalDate(date) && date >= course.startDate && date <= course.endDate;
 }
 
 export function isLocalDate(value: string): boolean {
